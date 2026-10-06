@@ -1,0 +1,66 @@
+const { chromium } = require('playwright');
+const B=process.env.BASE||'http://localhost:8091', SP=process.argv[2]||'.';
+const J={'Content-Type':'application/json'};
+let fails=0; const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c) fails++;};
+(async()=>{
+  const decl={rested:'yes',ackRecords:true,ackEmergency:true,under18:false,declaredBy:'seafarer'};
+  const c=await (await fetch(B+'/api/crew',{method:'POST',headers:J,body:JSON.stringify({name:'Pabs'})})).json();
+  await fetch(B+`/api/crew/${c.id}/quicklog`,{method:'POST',headers:J,body:JSON.stringify({type:'work',declaration:decl})});
+  const ents=async()=> (await (await fetch(B+`/api/crew/${c.id}/entries`)).json());
+  const br=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+  const ctx=await br.newContext({viewport:{width:390,height:844}});
+  const errs=[]; 
+  const page=await ctx.newPage(); page.on('pageerror',e=>errs.push('dash: '+e.message));
+  await page.goto(B+'/'); await page.waitForSelector('#heroMain',{state:'visible'});
+  await page.waitForFunction(()=>document.getElementById('heroState').textContent==='WORKING');
+  await ctx.setOffline(true);
+  await page.click('#btnRest');
+  await page.waitForFunction(()=>/saved on this phone/.test(document.getElementById('toastText').textContent));
+  ok(await page.textContent('#heroState')==='RESTING','dashboard shows RESTING while offline');
+  ok(/1 tap saved/.test(await page.textContent('#heroErr')),'dashboard shows 1 queued tap');
+  await page.waitForTimeout(1200);
+  await page.click('#btnWork');
+  await page.waitForFunction(()=>/2 taps saved/.test(document.getElementById('heroErr').textContent));
+  ok(true,'second offline tap queued');
+  await page.screenshot({path:SP+'/dash-offline.png'});
+  ok((await ents()).length===1,'server still has 1 entry while offline');
+  await ctx.setOffline(false);
+  await page.waitForFunction(()=>!/saved on this phone/.test(document.getElementById('heroErr').textContent),null,{timeout:15000});
+  let e=await ents();
+  ok(e.length===3&&e[1].type==='rest'&&e[0].type==='work'&&!e[0].end,'after reconnect: WORK, REST, WORK in order');
+  ok(Date.parse(e[1].end)-Date.parse(e[1].start)>=1000,'queued REST kept its own tap times');
+  // undo of a queued tap
+  await ctx.setOffline(true);
+  await page.click('#btnRest');
+  await page.waitForFunction(()=>/saved on this phone/.test(document.getElementById('toastText').textContent));
+  await page.click('#toastUndo');
+  await page.waitForFunction(()=>document.getElementById('heroState').textContent!=='RESTING');
+  ok(!(await page.evaluate(()=>CNTapQ.pending().length)),'undo removes a queued tap');
+  await ctx.setOffline(false); await page.waitForTimeout(1500);
+  ok((await ents()).length===3,'undone queued tap never reaches server');
+  // hours-of-rest page
+  const p2=await ctx.newPage(); p2.on('pageerror',e=>errs.push('hor: '+e.message));
+  await p2.goto(B+'/hours-of-rest.html'); await p2.waitForSelector('#cardNow .h-tap.rest');
+  await ctx.setOffline(true);
+  await p2.click('#cardNow .h-tap.rest');
+  await p2.waitForFunction(()=>/saved on this phone/.test(document.getElementById('cardNow').textContent));
+  ok(/Resting/.test(await p2.textContent('#cardNow .h-state')),'HoR page shows Resting offline');
+  await p2.screenshot({path:SP+'/hor-offline.png'});
+  // a conflicting entry logged elsewhere while this phone is offline
+  await fetch(B+`/api/crew/${c.id}/quicklog`,{method:'POST',headers:J,body:JSON.stringify({type:'rest'})});
+  await new Promise(r=>setTimeout(r,1200));
+  await fetch(B+`/api/crew/${c.id}/quicklog`,{method:'POST',headers:J,body:JSON.stringify({type:'work'})});
+  await ctx.setOffline(false);
+  await p2.waitForFunction(()=>/not applied/.test(document.getElementById('cardNow').textContent),null,{timeout:15000});
+  ok(true,'HoR page reports the refused tap');
+  await p2.screenshot({path:SP+'/hor-failed.png'});
+  await p2.click('[data-act=tapq-dismiss]');
+  await p2.waitForFunction(()=>!/not applied/.test(document.getElementById('cardNow').textContent));
+  ok(true,'dismiss clears the refused list');
+  // track page still loads
+  const p3=await ctx.newPage(); p3.on('pageerror',e=>errs.push('track: '+e.message));
+  await p3.goto(B+'/track.html'); await p3.waitForTimeout(1500);
+  ok(errs.length===0,'no page errors '+errs.join('; '));
+  await br.close();
+  console.log(fails?fails+' FAILED':'ALL PASS');
+})().catch(e=>{console.log('ERROR',e.message);process.exit(1);});
