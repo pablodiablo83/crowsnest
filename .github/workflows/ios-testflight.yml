@@ -27,8 +27,8 @@ jobs:
         working-directory: .
         run: |
           for v in TEAM_ID KEY_ID ISSUER_ID KEY_P8; do [ -n "${!v}" ] || { echo "Missing secret for $v - see docs/IOS-APP.md"; exit 1; }; done
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm

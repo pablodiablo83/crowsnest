@@ -26,6 +26,11 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>While a voyage is open, Crow's Nest keeps recording the voyage track with the app in the background. You can turn this off in Customise &gt; This phone.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
