@@ -1,0 +1,11 @@
+{
+  "appId": "uk.co.crowsnest.app",
+  "appName": "Crow's Nest",
+  "webDir": "www",
+  "backgroundColor": "#00154C",
+  "ios": {
+    "backgroundColor": "#00154C",
+    "contentInset": "never",
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}

@@ -17,10 +17,10 @@ let fails=0; const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c) fails++
   await page.click('#btnRest');
   await page.waitForFunction(()=>/saved on this phone/.test(document.getElementById('toastText').textContent));
   ok(await page.textContent('#heroState')==='RESTING','dashboard shows RESTING while offline');
-  ok(/1 tap saved/.test(await page.textContent('#heroErr')),'dashboard shows 1 queued tap');
+  ok(/1 change saved/.test(await page.textContent('#heroErr')),'dashboard shows 1 queued tap');
   await page.waitForTimeout(1200);
   await page.click('#btnWork');
-  await page.waitForFunction(()=>/2 taps saved/.test(document.getElementById('heroErr').textContent));
+  await page.waitForFunction(()=>/2 changes saved/.test(document.getElementById('heroErr').textContent));
   ok(true,'second offline tap queued');
   await page.screenshot({path:SP+'/dash-offline.png'});
   ok((await ents()).length===1,'server still has 1 entry while offline');

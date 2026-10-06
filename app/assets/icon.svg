@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+  <!-- Crow's Nest app icon: the web logo's binoculars, redrawn symmetric (public/assets/icon.svg has a broken outline that its viewBox crops) -->
+  <g fill="#062F4A">
+    <rect x="232" y="262" width="196" height="150" rx="44"/>
+    <rect x="572" y="262" width="196" height="150" rx="44"/>
+    <rect x="400" y="430" width="200" height="170" rx="30"/>
+    <circle cx="315" cy="565" r="215"/>
+    <circle cx="685" cy="565" r="215"/>
+  </g>
+  <circle cx="315" cy="565" r="140" fill="#ffffff"/>
+  <circle cx="685" cy="565" r="140" fill="#ffffff"/>
+  <g transform="translate(-15 155)">
+    <path fill="#28A7C4" d="M210 402c45-18 73 10 119 17 42 7 78 0 126-20-3 53-43 94-105 94-70 0-124-38-140-91z"/>
+    <path fill="#0C829B" d="M210 402c39 20 70 30 112 29 44-1 82-15 133-32-13 55-61 94-125 94-58 0-106-33-120-91z"/>
+  </g>
+  <g fill="#0C829B" transform="translate(15 155)">
+    <rect x="595" y="430" width="38" height="72"/>
+    <rect x="650" y="395" width="38" height="107"/>
+    <rect x="705" y="355" width="38" height="147"/>
+  </g>
+</svg>

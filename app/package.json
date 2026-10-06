@@ -1,0 +1,26 @@
+{
+  "name": "crowsnest-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Crow's Nest iOS app: the web pages in public/ bundled into a native shell (Capacitor)",
+  "scripts": {
+    "build": "node scripts/build-www.js",
+    "sync": "node scripts/build-www.js && cap sync ios",
+    "open": "cap open ios",
+    "icons": "node scripts/make-icons.js && capacitor-assets generate --ios --iconBackgroundColor '#FFFFFF' --splashBackgroundColor '#00154C'"
+  },
+  "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/geolocation": "^8.2.3",
+    "@capacitor/ios": "^8.5.2",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.2"
+  }
+}

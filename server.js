@@ -857,7 +857,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_positions_ts ON positions(ts);
 `);
-const POS_SOURCES = ['auto', 'tap', 'end', 'manual', 'typed', 'device'];
+const POS_SOURCES = ['auto', 'tap', 'end', 'manual', 'typed', 'device', 'background'];   // background = the phone app while closed
 const TRACK_INTERVALS = [0, 5, 10, 15, 30, 60];
 const TRACK_MARGIN_MS = 10 * 60 * 1000;   // a fix taken a moment before the voyage was opened, or after it was closed, still belongs to it
 const TRACK_MAX_ACC_M = 1000;             // fixes less accurate than this are kept but not drawn or counted

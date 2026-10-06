@@ -27,7 +27,11 @@
   function curCrew() { return S.crew.find(function (c) { return c.id === S.crewId; }) || null; }
   function openEntry() { return S.entries.find(function (e) { return !e.end; }) || null; }
   // the current period as this phone knows it: a tap saved offline (not yet on the server) wins over the server's open entry
-  function nowEntry() { var l = S.crewId && window.CNTapQ.last(S.crewId); return l ? { type: l.type, start: l.at, queued: true } : openEntry(); }
+  function nowEntry() {
+    var q = S.crewId && window.CNTapQ.state(S.crewId);
+    if (!q) return openEntry();
+    return q.ended ? null : { type: q.mode, start: q.since, queued: true };
+  }
   function openVoyage() { return S.voyages.find(function (v) { return !v.end; }) || null; }
   function ms(iso) { return Date.parse(iso); }
   function typeWord(t) { return t === 'rest' ? 'Rest' : 'Work'; }
@@ -200,11 +204,15 @@
   }
 
   /* ---------------------------------------------------------------- render: now */
-  function isAshore() { return !!(S.comp && ('voyage' in S.comp) && !S.comp.voyage) && !(S.crewId && window.CNTapQ.last(S.crewId)); }
+  function isAshore() {
+    var q = S.crewId && window.CNTapQ.state(S.crewId);
+    if (q) return q.ended;   // a queued End voyage, or a queued tap (voyage open or starting)
+    return !!(S.comp && ('voyage' in S.comp) && !S.comp.voyage);
+  }
   function renderNow() {
     var el = $('#cardNow'); if (!el) return;
     keepFocus(el, function () {
-      var c = curCrew(), open = nowEntry(), vy = S.comp && S.comp.voyage, ashore = isAshore();
+      var c = curCrew(), open = nowEntry(), ashore = isAshore(), vy = !ashore && S.comp && S.comp.voyage;
       var rest = open && open.type === 'rest', work = open && open.type === 'work';
       var state = rest ? 'Resting' : work ? 'Working' : ashore ? 'Ashore' : 'No period open';
       var html = '<div class="h-head"><div><h2>' + esc(c.name) + '</h2><p class="h-sub">' + (c.role ? esc(c.role) + ' · ' : '') + '<button type="button" class="h-note-link" data-act="crew-edit" data-id="' + esc(c.id) + '">Edit name or rank</button></p></div></div>';
@@ -232,10 +240,10 @@
   // taps saved on this phone and waiting to be sent, and any the server refused
   function queueNote() {
     var q = window.CNTapQ.pending(S.crewId), f = window.CNTapQ.failed(), h = '';
-    if (q.length) h += '<p class="h-sub" role="status" style="margin-top:10px">' + q.length + ' tap' + (q.length === 1 ? '' : 's') + ' saved on this phone (' +
-      q.map(function (i) { return typeWord(i.type).toUpperCase() + ' ' + hm(ms(i.at)); }).join(', ') + '), sent when the connection returns. The record and checks below do not include ' + (q.length === 1 ? 'it' : 'them') + ' yet.</p>';
-    if (f.length) h += '<div class="h-err" role="alert" style="margin-top:10px">' + f.length + ' saved tap' + (f.length === 1 ? ' was' : 's were') + ' not applied:<ul>' +
-      f.map(function (x) { var cr = S.crew.find(function (c) { return c.id === x.item.crewId; }); return '<li>' + esc((cr ? cr.name + ': ' : '') + typeWord(x.item.type).toUpperCase() + ' at ' + dt(ms(x.item.at)) + ' — ' + x.error) + '</li>'; }).join('') +
+    if (q.length) h += '<p class="h-sub" role="status" style="margin-top:10px">' + q.length + ' change' + (q.length === 1 ? '' : 's') + ' saved on this phone (' +
+      esc(q.map(window.CNTapQ.describe).join(', ')) + '), sent when the connection returns. The record and checks below do not include ' + (q.length === 1 ? 'it' : 'them') + ' yet.</p>';
+    if (f.length) h += '<div class="h-err" role="alert" style="margin-top:10px">' + f.length + ' saved change' + (f.length === 1 ? ' was' : 's were') + ' not applied:<ul>' +
+      f.map(function (x) { var cr = S.crew.find(function (c) { return c.id === x.item.crewId; }); return '<li>' + esc((cr ? cr.name + ': ' : '') + window.CNTapQ.describe(x.item) + ' on ' + dayName(ms(x.item.at)) + ' — ' + x.error) + '</li>'; }).join('') +
       '</ul>Add these by hand if they are right. <button type="button" class="h-note-link" data-act="tapq-dismiss">Dismiss</button></div>';
     return h;
   }
@@ -426,7 +434,15 @@
       if (s.entryId) await api('/api/entries/' + s.entryId, { method: 'PUT', body: body });
       else await api('/api/crew/' + S.crewId + '/entries', { method: 'POST', body: body });
       closeSheet(s); toast(s.entryId ? 'Entry saved' : 'Entry added'); await load();
-    } catch (err) { btn.disabled = false; showErr(s, err); }
+    } catch (err) {
+      if (err.offline && !s.entryId) {   // a new entry can wait on this phone; edits need a connection
+        var it = window.CNTapQ.addEntry(S.crewId, body);
+        closeSheet(s); renderAll();
+        toast('No connection. Entry saved on this phone, sent when back online.', function () { window.CNTapQ.remove(it.opId); renderAll(); });
+        return;
+      }
+      btn.disabled = false; showErr(s, err);
+    }
   }
   async function deleteEntry(id) {
     var e = S.entries.find(function (x) { return x.id === id; }); if (!e) return;
@@ -495,17 +511,21 @@
     } catch (err) { if (sheet) showErr(sheet, err); else toast(explain(err).text, null, 7000); }
   }
   async function endVoyage() {
-    var vy = S.comp && S.comp.voyage; if (!vy) return;
+    if (isAshore()) return;
     var ok = await confirmSheet({ title: 'End this voyage now?', text: 'Your current period is closed and recording stops until your next WORK tap. You can undo straight after.', ok: 'End voyage' });
     if (!ok) return;
-    try {
-      var r = await api('/api/crew/' + S.crewId + '/voyage/end', { method: 'POST', body: {} });
-      await load();
-      toast('Voyage ended at ' + hm(ms(r.end)), async function () {
+    var item = window.CNTapQ.addEnd(S.crewId);   // saved on this phone first, like a tap
+    renderNow();
+    var out = await window.CNTapQ.send(item);
+    await load();
+    if (out.sent) {
+      var r = out.sent;
+      toast('Voyage ended at ' + hm(ms(r.end)), r.duplicate ? null : async function () {
         try { await api('/api/crew/' + S.crewId + '/voyage/reopen', { method: 'POST', body: { voyageId: r.voyageId, entryId: r.closedEntryId } }); toast('Voyage reopened'); await load(); }
         catch (err) { toast(explain(err).text, null, 7000); }
       });
-    } catch (err) { toast(explain(err).text, null, 7000); }
+    } else if (out.failed) toast('Voyage not ended: ' + out.failed, null, 8000);
+    else toast('No connection. End voyage at ' + hm(ms(item.at)) + ' saved on this phone, sent when back online.', function () { window.CNTapQ.remove(item.opId); renderAll(); });
   }
 
   /* ---------------------------------------------------------------- sheets: declaration */
@@ -598,11 +618,46 @@
       '<section class="h-sec"><fieldset><h3>Time before a voyage</h3>' +
       '<label class="h-opt"><input type="radio" name="policy" value="rest"' + (S.policy === 'rest' ? ' checked' : '') + '><span>Count as available rest (recommended)<em>Assumes the seafarer was properly rested when beginning duty. Shown as assumed and kept separate from rest you log.</em></span></label>' +
       '<label class="h-opt"><input type="radio" name="policy" value="unknown"' + (S.policy === 'unknown' ? ' checked' : '') + '><span>Treat as unknown<em>The 24-hour and 7-day checks cannot be confirmed until a full window has been logged.</em></span></label></fieldset></section>' +
-      '<details class="h-more"><summary>Limits being applied</summary><div><ul><li>At least 10 hours of rest in any 24 hours.</li><li>Rest in no more than two periods, one at least 6 hours.</li><li>At least 77 hours of rest in any 7 days.</li><li>No more than 14 hours between rest periods.</li><li>A rest under 60 minutes does not count towards the 24-hour split or the 14-hour gap.</li></ul><p style="margin-top:8px">Based on the MLC Hours of Work Regulations 2018. Not yet applied: young persons, night work and authorised exceptions.</p></div></details>';
+      '<details class="h-more"><summary>Limits being applied</summary><div><ul><li>At least 10 hours of rest in any 24 hours.</li><li>Rest in no more than two periods, one at least 6 hours.</li><li>At least 77 hours of rest in any 7 days.</li><li>No more than 14 hours between rest periods.</li><li>A rest under 60 minutes does not count towards the 24-hour split or the 14-hour gap.</li></ul><p style="margin-top:8px">Based on the MLC Hours of Work Regulations 2018. Not yet applied: young persons, night work and authorised exceptions.</p></div></details>' +
+      phonesHtml() + thisPhoneHtml();
+  }
+  /* phones paired with the app (master only; a crew phone cannot see this list) */
+  function phonesHtml() {
+    if (S.devices === 'forbidden') return '';
+    var list = (S.devices || []).filter(function (d) { return !d.revokedAt; });
+    var me = window.CNNet && window.CNNet.device();
+    var rows = S.devices === null ? '<p class="h-lead">Loading…</p>' : list.length ? '<ul class="h-crewlist">' + list.map(function (d) {
+      var cr = d.role === 'crew' ? (S.crew.find(function (c) { return c.id === d.crewId; }) || {}).name || 'crew member' : null;
+      return '<li class="h-crewrow"><div class="who"><b>' + esc(d.name) + (me && me.id === d.id ? ' (this phone)' : '') + '</b><span>' + (cr ? 'Crew: ' + esc(cr) + ' only' : 'Master: everything') +
+        (d.lastSeen ? ' · last seen ' + dt(ms(d.lastSeen)) : ' · not used yet') + '</span></div>' +
+        '<button type="button" class="h-link" data-act="dev-remove" data-id="' + esc(d.id) + '">Remove</button></li>';
+    }).join('') + '</ul>' : '<p class="h-lead">No phones paired yet.</p>';
+    var code = S.pair ? '<div class="h-card" role="status" style="margin-top:10px;text-align:center"><p class="h-sub">Enter this code in the Crow’s Nest app' + (S.pair.role === 'crew' ? ' on ' + esc((S.crew.find(function (c) { return c.id === S.pair.crewId; }) || {}).name || '') + '’s phone' : '') +
+      '. It works once, until ' + hm(ms(S.pair.expiresAt)) + '.</p><div style="font-size:30px;font-weight:900;letter-spacing:.14em;margin:6px 0">' + esc(S.pair.code) + '</div></div>' : '';
+    return '<section class="h-sec"><h3>Phones</h3>' + rows +
+      '<fieldset style="margin-top:10px"><legend class="h-lead">Pair a phone with the app</legend>' +
+      '<label class="h-opt"><input type="radio" name="pairRole" value="master" checked><span>Master<em>Everything: all crew, vessel, voyages.</em></span></label>' +
+      '<label class="h-opt"><input type="radio" name="pairRole" value="crew"><span>One crew member<em>Their own hours only.</em></span></label>' +
+      '<div class="h-fld"><label for="pairCrew">Crew member (for a crew phone)</label><select class="h-in" id="pairCrew">' + S.crew.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('') + '</select></div></fieldset>' +
+      '<div class="h-actions"><button type="button" class="h-btn ghost" data-act="dev-pair">Pair a phone</button></div>' + code + '</section>';
+  }
+  /* this phone (inside the app only) */
+  function thisPhoneHtml() {
+    var N = window.CNNet; if (!N || !N.isApp) return '';
+    var d = N.device() || {}, bg = lsGet('cn_bg') !== 'off';
+    return '<section class="h-sec"><h3>This phone</h3><p class="h-lead">' + esc(d.name || 'This phone') + ' · ' + (d.role === 'crew' ? 'crew phone' : 'master phone') + ' · ' + esc(N.server()) + '</p>' +
+      '<label class="h-opt"><input type="checkbox" name="bgtrack"' + (bg ? ' checked' : '') + '><span>Record the voyage track in the background<em>While a voyage is open, with the app in the background. iOS shows the location indicator. It stops if the app is swiped away.</em></span></label>' +
+      '<div class="h-actions"><button type="button" class="h-btn ghost" data-act="dev-disconnect">Disconnect this phone</button></div></section>';
+  }
+  async function loadDevices() {
+    try { S.devices = await api('/api/devices'); } catch (e) { S.devices = e.status === 403 ? 'forbidden' : []; }
+    refreshSettings();
   }
   function settingsSheet(focus) {
+    S.devices = null; S.pair = null;
     var s = openSheet('Customise', '<div class="settings-body">' + settingsHtml() + '</div>', { focus: focus ? '#' + focus : null });
     s.isSettings = true;
+    loadDevices();
     return s;
   }
   function refreshSettings() {
@@ -626,7 +681,8 @@
       'voyage-reopen': function () { return 'Reopened voyage ' + v(c); }, 'voyage-delete': function () { return 'Deleted voyage ' + v(b); }, 'voyage-restore': function () { return 'Restored voyage ' + v(c); },
       'voyage-declaration': function () { return 'Joining declaration taken for voyage ' + v(c); },
       'crew-edit': function () { return 'Crew details changed: ' + (b.name || '') + (b.role ? ' (' + b.role + ')' : '') + ' to ' + (c.name || '') + (c.role ? ' (' + c.role + ')' : ''); },
-      'vessel-edit': function () { return 'Vessel details changed'; }
+      'vessel-edit': function () { return 'Vessel details changed'; },
+      'device-pair': function () { return 'Phone paired: ' + (c.name || '') + (c.role === 'crew' ? ' (crew phone)' : ' (master)'); }, 'device-remove': function () { return 'Phone removed: ' + (b.name || ''); }
     };
     return who + (m[a.action] ? m[a.action]() : a.action);
   }
@@ -655,27 +711,41 @@
     // saved on this phone first, then sent: a tap is never lost to a dropped connection
     var item = window.CNTapQ.add(S.crewId, type, decl);
     renderNow();
-    var res = await window.CNTapQ.flush();
-    var sent = res.sent.find(function (x) { return x.item.tapId === item.tapId; });
-    var bad = res.failed.find(function (x) { return x.item.tapId === item.tapId; });
-    if (sent) {
-      var row = sent.row;
+    var out = await window.CNTapQ.send(item);
+    if (out.sent) {
+      var row = out.sent;
       await load();
       toast((row.startedVoyage ? 'Voyage started. ' : '') + 'Switched to ' + type.toUpperCase() + ' at ' + hm(ms(row.start)), row.duplicate ? null : async function () {
         try { await api('/api/crew/' + S.crewId + '/quicklog-undo', { method: 'POST', body: { newId: row.id, prevId: row.closedId || null, voyageId: row.startedVoyage ? row.voyageId : null } }); await load(); }
         catch (err) { toast('Undo failed. Check the entries list.', null, 6000); }
       });
-    } else if (bad) {
+    } else if (out.failed) {
       await load();
-      toast('Not saved: ' + bad.error, null, 8000);
+      toast('Not saved: ' + out.failed, null, 8000);
     } else {
       renderAll();
       toast('No connection. ' + type.toUpperCase() + ' at ' + hm(ms(item.at)) + ' saved on this phone, sent when back online.', function () {
-        if (!window.CNTapQ.remove(item.tapId)) toast('Already sent. Undo it from the entries list.', null, 6000);
+        if (!window.CNTapQ.remove(item.opId)) toast('Already sent. Undo it from the entries list.', null, 6000);
         renderAll();
       });
     }
     S.busy = false;
+  }
+
+  /* ---------------------------------------------------------------- phones */
+  async function pairPhone(sh) {
+    var root = sh ? sh.el : document, role = ($('input[name=pairRole]:checked', root) || {}).value || 'master';
+    try {
+      S.pair = await api('/api/devices/pair-code', { method: 'POST', body: { role: role, crewId: role === 'crew' ? $('#pairCrew', root).value : null } });
+      refreshSettings();
+    } catch (err) { toast(explain(err).text, null, 7000); }
+  }
+  async function removePhone(id) {
+    var d = (S.devices || []).find(function (x) { return x.id === id; }); if (!d) return;
+    var ok = await confirmSheet({ title: 'Remove ' + d.name + '?', text: 'It stops working at once. Its records stay. To use it again, pair it with a new code.', ok: 'Remove phone', danger: true });
+    if (!ok) return;
+    try { await api('/api/devices/' + id, { method: 'DELETE' }); toast(d.name + ' removed'); loadDevices(); }
+    catch (err) { toast(explain(err).text, null, 7000); }
   }
 
   /* ---------------------------------------------------------------- print record */
@@ -740,6 +810,10 @@
       case 'crew-del': removeCrew(id); break;
       case 'tap': tap(el.getAttribute('data-k')); break;
       case 'tapq-dismiss': window.CNTapQ.clearFailed(); break;
+      case 'dev-pair': pairPhone(sh); break;
+      case 'dev-remove': removePhone(id); break;
+      case 'dev-disconnect': confirmSheet({ title: 'Disconnect this phone?', text: 'Anything still waiting to be sent stays on this phone and goes after you pair it again.', ok: 'Disconnect', danger: true })
+        .then(function (ok) { if (ok) window.CNNet.disconnect(); }); break;
       case 'settings': settingsSheet(el.getAttribute('data-focus')); break;
       case 'entry-add': entrySheet({}); break;
       case 'entry-edit': entrySheet({ entry: S.entries.find(function (e) { return e.id === id; }) }); break;
@@ -781,6 +855,9 @@
     if (t.name === 'primary') {
       api('/api/dashboard/settings', { method: 'PUT', body: { primaryCrewId: t.value } }).then(function () { S.primaryId = t.value; toast('Dashboard now shows ' + (S.crew.find(function (c) { return c.id === t.value; }) || {}).name); })
         .catch(function (e) { toast(explain(e).text, null, 6000); refreshSettings(); });
+    } else if (t.name === 'bgtrack') {
+      lsSet('cn_bg', t.checked ? 'on' : 'off'); if (window.CNNative) window.CNNative.check();
+      toast(t.checked ? 'Background track on' : 'Background track off');
     } else if (t.name === 'policy') {
       api('/api/settings/pre-voyage', { method: 'PUT', body: { policy: t.value } }).then(function () { S.policy = t.value; toast('Time before a voyage: ' + (t.value === 'rest' ? 'counts as available rest' : 'treated as unknown')); return load(); })
         .catch(function (e) { toast(explain(e).text, null, 6000); refreshSettings(); });

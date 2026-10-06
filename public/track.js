@@ -27,7 +27,7 @@
     return h + 'h ' + p2(m % 60) + 'm';
   }
   function nm1(x) { return x == null ? '—' : x.toFixed(1); }
-  var SRC = { auto: 'timer', tap: 'work/rest tap', end: 'voyage end', manual: 'logged by hand', typed: 'typed in', device: 'boat device' };
+  var SRC = { auto: 'timer', tap: 'work/rest tap', end: 'voyage end', manual: 'logged by hand', typed: 'typed in', device: 'boat device', background: 'phone (background)' };
 
   /* ------------------------------------------------------------ api + toast */
   async function api(url, opt) {

@@ -55,9 +55,12 @@
   // taps saved on this phone but not yet on the server: show the latest as the current state
   function overlayQueue() {
     st.queued = st.crewId ? window.CNTapQ.pending(st.crewId).length : 0;
-    var l = st.crewId && window.CNTapQ.last(st.crewId);
-    st.mode = l ? l.type : st.srvMode; st.since = l ? l.at : st.srvSince;   // last state the server confirmed
+    var q = st.crewId && window.CNTapQ.state(st.crewId);
+    st.mode = q ? q.mode : st.srvMode; st.since = q ? q.since : st.srvSince;   // else the last state the server confirmed
+    st.qEnded = !!(q && q.ended);          // an End voyage is waiting to be sent
+    st.qAfloat = !!(q && !q.ended);        // a tap is waiting: a voyage is (or will be) open
   }
+  function isAshore() { return st.qEnded || (st.voyKnown && !st.voy && !st.qAfloat); }
 
   // verdict: 'compliant' | 'indeterminate' | 'breach' (booleans accepted for the legacy fallback)
   function setChip(id, v) {
@@ -125,15 +128,15 @@
     var nf = window.CNTapQ.failed().length, he = $('heroErr');
     var msg = [];
     if (st.offline && st.loaded) msg.push('No connection \u2014 showing last known status.');
-    if (st.queued) msg.push(st.queued + ' tap' + (st.queued === 1 ? '' : 's') + ' saved on this phone, sent when back online.');
-    if (nf) msg.push(nf + ' saved tap' + (nf === 1 ? ' was' : 's were') + ' not applied \u2014 see Hours of rest.');
+    if (st.queued) msg.push(st.queued + ' change' + (st.queued === 1 ? '' : 's') + ' saved on this phone, sent when back online.');
+    if (nf) msg.push(nf + ' saved change' + (nf === 1 ? ' was' : 's were') + ' not applied \u2014 see Hours of rest.');
     he.textContent = msg.join(' ');
     he.style.display = msg.length ? '' : 'none';
     if (!st.crewId) return;
     $('heroName').textContent = st.crewName + (st.vessel ? ' · ' + st.vessel : '');
     var rest = st.mode === 'rest', work = st.mode === 'work';
     var lab = $('heroState');
-    var ashore = st.voyKnown && !st.voy && !st.queued;
+    var ashore = isAshore();
     lab.textContent = rest ? 'RESTING' : work ? 'WORKING' : ashore ? 'ASHORE' : 'NOT LOGGING';
     $('heroDot').className = 'hdot' + (rest ? ' rest' : work ? ' work' : '');
     $('btnRest').className = 'hbtn rest' + (rest ? ' active' : '');
@@ -148,9 +151,9 @@
     var c = st.comp, e = st.eng, note = $('heroNote');
     var chipsOn = ashore ? 'none' : '';
     ['chip24', 'chip7', 'chipGap'].forEach(function (id) { $(id).style.display = chipsOn; });
-    $('btnEndVoy').style.display = st.voy ? '' : 'none';
-    $('heroDecl').style.display = st.voy && st.voy.declarationDue ? '' : 'none';
-    $('heroVoyage').textContent = st.voy ? 'Voyage day ' + st.voy.day + ' \u00b7 started ' + fmtDayTime(st.voy.start) : '';
+    $('btnEndVoy').style.display = (st.voy || st.qAfloat) && !st.qEnded ? '' : 'none';
+    $('heroDecl').style.display = st.voy && st.voy.declarationDue && !ashore ? '' : 'none';
+    $('heroVoyage').textContent = st.voy && !ashore ? 'Voyage day ' + st.voy.day + ' \u00b7 started ' + fmtDayTime(st.voy.start) : '';
     if (ashore) {
       var f0 = $('heroRingFill'); f0.style.strokeDashoffset = '326.7'; f0.style.stroke = '';
       $('heroRingTime').textContent = '\u2014';
@@ -246,7 +249,7 @@
 
   async function tap(type) {
     if (st.busy || !st.crewId || st.mode === type) return;
-    var ashoreNow = st.voyKnown && !st.voy && !st.queued, decl = null;
+    var ashoreNow = isAshore(), decl = null;
     if (ashoreNow) {
       if (type !== 'work') { showToast('A voyage starts with the first WORK tap', false, 4500); return; }
       decl = await askDecl(true);
@@ -256,22 +259,19 @@
     $('hero').classList.add('busy');
     // saved on this phone first, then sent: a tap is never lost to a dropped connection
     var item = window.CNTapQ.add(st.crewId, type, decl);
-    st.mode = type; st.since = item.at; st.queued = window.CNTapQ.pending(st.crewId).length;
-    render();
+    overlayQueue(); render();
     try { document.dispatchEvent(new CustomEvent('cn:tap', { detail: { type: type, startedVoyage: !!decl } })); } catch (e2) {}
-    var res = await window.CNTapQ.flush();
-    var sent = res.sent.find(function (x) { return x.item.tapId === item.tapId; });
-    var bad = res.failed.find(function (x) { return x.item.tapId === item.tapId; });
-    if (sent) {
-      var row = sent.row;
+    var out = await window.CNTapQ.send(item);
+    if (out.sent) {
+      var row = out.sent;
       st.offline = false;
       undoInfo = row.duplicate ? null : { kind: 'tap', newId: row.id, prev: row.closedId ? { id: row.closedId } : null, voyageId: row.startedVoyage ? row.voyageId : null };
       showToast((row.startedVoyage ? 'Voyage started \u00b7 ' : '') + 'Switched to ' + type.toUpperCase() + ' at ' + p2(new Date(row.start).getHours()) + ':' + p2(new Date(row.start).getMinutes()), !!undoInfo);
-    } else if (bad) {
+    } else if (out.failed) {
       undoInfo = null;
-      showToast('Not saved \u2014 ' + bad.error, false, 8000);
+      showToast('Not saved \u2014 ' + out.failed, false, 8000);
     } else {
-      undoInfo = { kind: 'queued', tapId: item.tapId };
+      undoInfo = { kind: 'queued', opId: item.opId };
       showToast('No connection \u2014 ' + type.toUpperCase() + ' at ' + p2(new Date(item.at).getHours()) + ':' + p2(new Date(item.at).getMinutes()) + ' saved on this phone, sent when back online', true, 9000);
     }
     undoKeep = undoInfo;
@@ -286,7 +286,7 @@
     hideToast();
     if (!u) return;
     if (u.kind === 'queued') {
-      if (!window.CNTapQ.remove(u.tapId)) showToast('Already sent \u2014 undo it on the Hours of rest page.', false, 6000);
+      if (!window.CNTapQ.remove(u.opId)) showToast('Already sent \u2014 undo it on the Hours of rest page.', false, 6000);
       load(); return;
     }
     try {
@@ -297,20 +297,26 @@
   }
 
   async function endVoyage() {
-    if (st.busy || !st.crewId || !st.voy) return;
+    if (st.busy || !st.crewId || isAshore()) return;
     if (!window.confirm('End this voyage now?\n\nYour current period is closed and recording stops until your next tap.')) return;
     st.busy = true;
-    try {
-      var r = await api('/api/crew/' + st.crewId + '/voyage/end', { method: 'POST', headers: J, body: '{}' });
-      var t = new Date(r.end);
-      undoInfo = { kind: 'end', voyageId: r.voyageId, entryId: r.closedEntryId };
-      undoKeep = undoInfo;
-      st.mode = null; st.since = null; st.voy = null;
-      showToast('Voyage ended at ' + p2(t.getHours()) + ':' + p2(t.getMinutes()), true, 10000);
+    var item = window.CNTapQ.addEnd(st.crewId);   // saved on this phone first, like a tap
+    overlayQueue(); render();
+    var out = await window.CNTapQ.send(item), t = new Date(item.at);
+    if (out.sent) {
+      var r = out.sent; t = new Date(r.end);
+      undoInfo = r.duplicate ? null : { kind: 'end', voyageId: r.voyageId, entryId: r.closedEntryId };
+      showToast('Voyage ended at ' + p2(t.getHours()) + ':' + p2(t.getMinutes()), !!undoInfo, 10000);
       try { document.dispatchEvent(new CustomEvent('cn:voyage-end', { detail: { voyageId: r.voyageId } })); } catch (e2) {}
-      await load();
-    } catch (e) { showToast('Not ended \u2014 no connection or no open voyage. Try again.', false, 6000); }
+    } else if (out.failed) {
+      undoInfo = null; showToast('Voyage not ended \u2014 ' + out.failed, false, 8000);
+    } else {
+      undoInfo = { kind: 'queued', opId: item.opId };
+      showToast('No connection \u2014 End voyage at ' + p2(t.getHours()) + ':' + p2(t.getMinutes()) + ' saved on this phone, sent when back online', true, 10000);
+    }
+    undoKeep = undoInfo;
     st.busy = false;
+    await load();
   }
 
   async function addSelf() {
