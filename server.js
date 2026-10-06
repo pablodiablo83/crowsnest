@@ -10,6 +10,7 @@ const horEngine = require('./engine/hor-engine.js');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new Database(path.join(DATA_DIR, 'crowsnest.db'));
+let reqDevice = null;   // the paired device making the current request (handlers are synchronous; set and cleared around them)
 
 db.pragma('journal_mode = WAL');
 db.exec(`
@@ -69,9 +70,12 @@ db.exec(`
     FOREIGN KEY(crew_id) REFERENCES crew(id)
   );
 `);
-try { db.exec('ALTER TABLE voyages ADD COLUMN declaration TEXT'); } catch (e) { if (!/duplicate column/i.test(String(e.message))) throw e; }   // after the table exists
+for (const sql of ['ALTER TABLE voyages ADD COLUMN declaration TEXT', 'ALTER TABLE voyages ADD COLUMN end_op_id TEXT']) {   // after the table exists
+  try { db.exec(sql); } catch (e) { if (!/duplicate column/i.test(String(e.message))) throw e; }
+}
 const entryView = r => r ? { id: r.id, crew_id: r.crew_id, type: r.type, start: r.start, end: r.end, note: r.note } : null;
 function auditRaw(action, id, crewId, before, after, source) {
+  if (reqDevice) source = (source || 'api') + '@' + reqDevice.name;   // which paired phone did it
   db.prepare('INSERT INTO entry_audit (at, entry_id, crew_id, action, before_json, after_json, source) VALUES (?,?,?,?,?,?,?)')
     .run(new Date().toISOString(), id, crewId || null, action,
       before ? JSON.stringify(before) : null, after ? JSON.stringify(after) : null, source || null);
@@ -264,6 +268,122 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ---- phones (the iOS app): device tokens, pairing, /api/v1 ----
+// The web app sits behind Caddy basic auth and has no login of its own. The app talks to /api/v1/*, which Caddy lets
+// through without basic auth; every /api/v1 request must carry a device token (Authorization: Bearer ...), except pairing.
+// A device is paired with a one-time code made on the web app (Customise > Phones). Role 'master' = everything;
+// role 'crew' = that crew member's own hours only. /api/v1/x is the same handler as /api/x.
+const crypto = require('crypto');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devices (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, role TEXT NOT NULL CHECK(role IN ('master','crew')),
+    crew_id TEXT, created_at TEXT NOT NULL, last_seen TEXT, revoked_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS pair_codes (
+    code_hash TEXT PRIMARY KEY, role TEXT NOT NULL, crew_id TEXT, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT
+  );
+`);
+const sha256 = s => crypto.createHash('sha256').update(String(s)).digest('hex');
+const PAIR_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', PAIR_TTL_MS = 10 * 60000;
+const normCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const deviceView = d => d ? { id: d.id, name: d.name, role: d.role, crewId: d.crew_id, createdAt: d.created_at, lastSeen: d.last_seen, revokedAt: d.revoked_at } : null;
+const APP_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'http://localhost', 'https://localhost']
+  .concat(String(process.env.APP_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
+const pairFails = [];   // timestamps of failed pairing attempts (all devices): brute-force brake
+const PAIR_FAIL_LIMIT = 20;
+
+// What a crew-role device may do: read shared things, and read/write its own crew member's hours.
+function crewAllowed(dev, method, p) {
+  const own = dev.crew_id, m = p.match(/^\/api\/crew\/([^/]+)(\/.*)?$/);
+  if (m) {
+    if (m[1] !== own) return false;
+    if (method === 'GET') return true;
+    return /^\/(quicklog|quicklog-undo|entries|voyages|voyage\/end|voyage\/reopen)$/.test(m[2] || '');
+  }
+  const e = p.match(/^\/api\/entries\/([^/]+)(\/restore)?$/);
+  if (e) { const r = db.prepare('SELECT crew_id FROM entries WHERE id = ?').get(e[1]); return !!r && r.crew_id === own; }
+  const v = p.match(/^\/api\/voyages\/([^/]+)(\/(declaration|restore|track|track\.gpx|track\.csv))?$/);
+  if (v) {
+    if (method === 'GET' && /^\/track/.test(v[2] || '')) return true;   // the track is vessel-level
+    const r = db.prepare('SELECT crew_id FROM voyages WHERE id = ?').get(v[1]); return !!r && r.crew_id === own;
+  }
+  if (method === 'POST' && p === '/api/positions') return true;
+  if (method !== 'GET') return false;
+  return ['/api/vessel', '/api/crew', '/api/me', '/api/time', '/api/dashboard/settings', '/api/dashboard/hor-summary', '/api/settings/pre-voyage',
+    '/api/positions/latest', '/api/weather', '/api/tides', '/api/settings/tide-provider'].includes(p) || /^\/api\/track\//.test(p);
+}
+
+app.use((req, res, next) => {
+  if (!/^\/api\/v1(\/|$)/.test(req.path)) return next();
+  const origin = req.get('Origin');
+  if (origin && APP_ORIGINS.includes(origin)) {
+    res.set({ 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin', 'Access-Control-Expose-Headers': 'Date',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Source', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS', 'Access-Control-Max-Age': '600' });
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  req.url = req.url.replace(/^\/api\/v1/, '/api');
+  if (req.path === '/api/auth/pair' || req.path === '/api/time') return next();
+  const m = String(req.get('Authorization') || '').match(/^Bearer\s+([A-Za-z0-9_-]{20,100})$/);
+  const dev = m && db.prepare('SELECT * FROM devices WHERE token_hash = ? AND revoked_at IS NULL').get(sha256(m[1]));
+  if (!dev) return res.status(401).json({ code: 'unauthorised', error: 'this phone is not paired (or was removed) - pair it again' });
+  if (dev.role === 'crew' && !crewAllowed(dev, req.method, req.path)) return res.status(403).json({ code: 'forbidden', error: 'this phone is paired for ' + 'one crew member only' });
+  const nowIso = new Date().toISOString();
+  if (!dev.last_seen || Date.now() - Date.parse(dev.last_seen) > 60000) db.prepare('UPDATE devices SET last_seen = ? WHERE id = ?').run(nowIso, dev.id);
+  reqDevice = dev;
+  try { next(); } finally { reqDevice = null; }
+});
+
+// Server clock (the app corrects tap times with it)
+app.get('/api/time', (req, res) => res.json({ now: new Date().toISOString() }));
+// Who is this? (the app shows it; null on the web)
+app.get('/api/me', (req, res) => res.json({ device: deviceView(reqDevice) }));
+// Make a one-time pairing code (web app, master only)
+app.post('/api/devices/pair-code', (req, res) => {
+  if (reqDevice && reqDevice.role !== 'master') return res.status(403).json({ error: 'only the master can pair phones' });
+  const role = (req.body || {}).role === 'crew' ? 'crew' : 'master';
+  const crewId = role === 'crew' ? String((req.body || {}).crewId || '') : null;
+  if (role === 'crew' && !db.prepare(`SELECT 1 FROM crew WHERE id = ? AND ${ACTIVE}`).get(crewId)) return res.status(400).json({ error: 'choose the crew member this phone is for' });
+  let code = ''; const b = crypto.randomBytes(8);
+  for (let i = 0; i < 8; i++) code += PAIR_ALPHABET[b[i] % PAIR_ALPHABET.length];
+  const now = Date.now();
+  db.prepare('DELETE FROM pair_codes WHERE expires_at < ?').run(new Date(now - 86400000).toISOString());
+  db.prepare('INSERT INTO pair_codes (code_hash, role, crew_id, created_at, expires_at) VALUES (?,?,?,?,?)')
+    .run(sha256(code), role, crewId, new Date(now).toISOString(), new Date(now + PAIR_TTL_MS).toISOString());
+  res.json({ code: code.slice(0, 4) + '-' + code.slice(4), role, crewId, expiresAt: new Date(now + PAIR_TTL_MS).toISOString() });
+});
+// Exchange a pairing code for a device token (the app; no login needed - the code is the proof)
+app.post('/api/auth/pair', (req, res) => {
+  const now = Date.now();
+  while (pairFails.length && pairFails[0] < now - 3600000) pairFails.shift();
+  if (pairFails.length >= PAIR_FAIL_LIMIT) return res.status(429).json({ code: 'too_many_attempts', error: 'too many wrong codes - wait an hour, or make a new code' });
+  const code = normCode((req.body || {}).code);
+  const name = String((req.body || {}).name || '').trim().slice(0, 60) || 'Phone';
+  const pc = code.length === 8 && db.prepare('SELECT * FROM pair_codes WHERE code_hash = ?').get(sha256(code));
+  if (!pc || pc.used_at || Date.parse(pc.expires_at) < now) { pairFails.push(now); return res.status(400).json({ code: 'bad_code', error: 'that code is wrong, used or expired - make a new one' }); }
+  const token = crypto.randomBytes(32).toString('base64url');
+  const dev = { id: uid(), name, token_hash: sha256(token), role: pc.role, crew_id: pc.crew_id, created_at: new Date(now).toISOString() };
+  db.transaction(() => {
+    db.prepare('UPDATE pair_codes SET used_at = ? WHERE code_hash = ?').run(dev.created_at, pc.code_hash);
+    db.prepare('INSERT INTO devices (id, name, token_hash, role, crew_id, created_at) VALUES (@id,@name,@token_hash,@role,@crew_id,@created_at)').run(dev);
+    auditRaw('device-pair', 'device:' + dev.id, dev.crew_id, null, deviceView(dev), 'pairing');
+  })();
+  res.json({ token, device: deviceView(dev) });
+});
+app.get('/api/devices', (req, res) => {
+  if (reqDevice && reqDevice.role !== 'master') return res.status(403).json({ error: 'master only' });
+  res.json(db.prepare('SELECT * FROM devices ORDER BY created_at DESC').all().map(deviceView));
+});
+app.delete('/api/devices/:id', (req, res) => {
+  if (reqDevice && reqDevice.role !== 'master') return res.status(403).json({ error: 'master only' });
+  const d = db.prepare('SELECT * FROM devices WHERE id = ? AND revoked_at IS NULL').get(req.params.id);
+  if (!d) return res.json({ ok: true });
+  db.transaction(() => {
+    db.prepare('UPDATE devices SET revoked_at = ? WHERE id = ?').run(new Date().toISOString(), d.id);
+    auditRaw('device-remove', 'device:' + d.id, d.crew_id, deviceView(d), null, req.get('X-Source') || 'api');
+  })();
+  res.json({ ok: true });
+});
+
 // ---- settings (vessel name) ----
 // Vessel details (they head the printed record: MSN 1877 Annex B asks for vessel name, flag and official number)
 const VESSEL_KEYS = { vessel: 'vessel', officialNumber: 'vesselOfficialNo', flag: 'vesselFlag' };
@@ -280,7 +400,8 @@ app.put('/api/vessel', (req, res) => {
 
 // ---- crew ----
 app.get('/api/crew', (req, res) => {
-  res.json(db.prepare('SELECT * FROM crew WHERE deleted_at IS NULL ORDER BY created_at ASC').all());
+  const all = db.prepare('SELECT * FROM crew WHERE deleted_at IS NULL ORDER BY created_at ASC').all();
+  res.json(reqDevice && reqDevice.role === 'crew' ? all.filter(c => c.id === reqDevice.crew_id) : all);
 });
 app.post('/api/crew', (req, res) => {
   const name = String(req.body.name || '').trim().slice(0, 60);
@@ -324,6 +445,10 @@ app.get('/api/crew/:id/entries', (req, res) => {
 });
 app.post('/api/crew/:id/entries', (req, res) => {
   const { type, note } = req.body;
+  // opId: an entry added offline and sent later is applied once (stored in tap_id, the client operation id)
+  const opId = req.body.opId === undefined ? null : String(req.body.opId);
+  if (opId !== null && !OP_ID.test(opId)) return res.status(400).json({ error: 'opId must be 1-64 letters, digits, _ or -' });
+  if (opId) { const seen = db.prepare('SELECT * FROM entries WHERE crew_id = ? AND tap_id = ?').get(req.params.id, opId); if (seen) return res.json({ ...seen, duplicate: true }); }
   if (!['rest', 'work'].includes(type) || !req.body.start) {
     return res.status(400).json({ error: 'type (rest|work) and start are required' });
   }
@@ -335,12 +460,12 @@ app.post('/api/crew/:id/entries', (req, res) => {
   if (bad) return res.status(bad.status).json(bad);
   const row = {
     id: uid(), crew_id: req.params.id, voyage_id: vy.id, type, start,
-    end, note: note || '', created_at: new Date().toISOString()
+    end, note: note || '', created_at: new Date().toISOString(), tap_id: opId
   };
   db.transaction(() => {
-    db.prepare(`INSERT INTO entries (id, crew_id, voyage_id, type, start, end, note, created_at)
-      VALUES (@id, @crew_id, @voyage_id, @type, @start, @end, @note, @created_at)`).run(row);
-    audit('create', row.id, row.crew_id, null, row, 'manual');
+    db.prepare(`INSERT INTO entries (id, crew_id, voyage_id, type, start, end, note, created_at, tap_id)
+      VALUES (@id, @crew_id, @voyage_id, @type, @start, @end, @note, @created_at, @tap_id)`).run(row);
+    audit('create', row.id, row.crew_id, null, row, opId ? 'manual-queued' : 'manual');
   })();
   res.json(row);
 });
@@ -348,19 +473,25 @@ app.post('/api/crew/:id/entries', (req, res) => {
 // Offline queue (public/tapq.js): `tapId` makes a replay idempotent; `at` (ISO with zone) is the time the tap was made on the
 // device, sent only when a queued tap is replayed late. A late tap must fall after the open period began and inside a voyage.
 const MAX_TAP_AGE_MS = 30 * 86400000;
+const OP_ID = /^[A-Za-z0-9_-]{1,64}$/;
+// A time sent by the phone for something done earlier offline: zone required, not in the future, not more than 30 days old.
+function lateTime(v) {
+  const at = normTime(v);   // throws on a bad time
+  if (at && Date.parse(at) > Date.now() + FUTURE_TOL_MS) throw new Error('time is in the future');
+  if (at && Date.parse(at) < Date.now() - MAX_TAP_AGE_MS) throw new Error('time is more than 30 days old');
+  return at;
+}
 app.post('/api/crew/:id/quicklog', (req, res) => {
   const { type } = req.body;
   if (!['rest', 'work'].includes(type)) return res.status(400).json({ error: 'type required' });
   const tapId = req.body.tapId === undefined ? null : String(req.body.tapId);
-  if (tapId !== null && !/^[A-Za-z0-9_-]{1,64}$/.test(tapId)) return res.status(400).json({ error: 'tapId must be 1-64 letters, digits, _ or -' });
+  if (tapId !== null && !OP_ID.test(tapId)) return res.status(400).json({ error: 'tapId must be 1-64 letters, digits, _ or -' });
   if (tapId) {   // already applied (the reply was lost) - or applied and since undone: never apply it twice
     const seen = db.prepare('SELECT * FROM entries WHERE crew_id = ? AND tap_id = ?').get(req.params.id, tapId);
     if (seen) return res.json({ ...seen, voyageId: seen.voyage_id, duplicate: true });
   }
   let at = null;
-  try { at = normTime(req.body.at); } catch (e) { return res.status(400).json({ error: e.message }); }
-  if (at && Date.parse(at) > Date.now() + FUTURE_TOL_MS) return res.status(400).json({ error: 'tap time is in the future' });
-  if (at && Date.parse(at) < Date.now() - MAX_TAP_AGE_MS) return res.status(400).json({ error: 'tap time is more than 30 days old' });
+  try { at = lateTime(req.body.at); } catch (e) { return res.status(400).json({ error: 'tap ' + e.message }); }
   const open = db.prepare(`SELECT * FROM entries WHERE crew_id = ? AND end IS NULL AND ${ACTIVE}`).get(req.params.id);
   if (open && open.type === type) return res.json({ ...open, voyageId: open.voyage_id }); // already in this state
   if (at && open && Date.parse(at) <= Date.parse(open.start))
@@ -481,20 +612,33 @@ app.put('/api/voyages/:id', (req, res) => {
   res.json({ ok: true });
 });
 // End the voyage: close any open period at the same instant, then the voyage itself.
+// Offline (the app): opId applies it once; at = when End voyage was pressed, if sent later. A late end must come after
+// everything logged in the voyage, else it is refused (409) and the phone shows it as not applied.
 app.post('/api/crew/:id/voyage/end', (req, res) => {
+  const b = req.body || {};
+  const opId = b.opId === undefined ? null : String(b.opId);
+  if (opId !== null && !OP_ID.test(opId)) return res.status(400).json({ error: 'opId must be 1-64 letters, digits, _ or -' });
+  if (opId) {
+    const seen = db.prepare(`SELECT * FROM voyages WHERE crew_id = ? AND end_op_id = ?`).get(req.params.id, opId);
+    if (seen) return res.json({ ok: true, voyageId: seen.id, end: seen.end, closedEntryId: null, duplicate: true });
+  }
+  let at = null;
+  try { at = lateTime(b.at); } catch (e) { return res.status(400).json({ error: e.message }); }
   const vy = activeVoyage(req.params.id);
-  if (!vy) return res.status(409).json({ error: 'no voyage is open' });
+  if (!vy) return res.status(409).json({ code: 'no_open_voyage', error: 'no voyage is open' });
   const open = db.prepare(`SELECT * FROM entries WHERE voyage_id = ? AND end IS NULL AND ${ACTIVE}`).get(vy.id);
   const lastEnd = db.prepare(`SELECT MAX(end) AS m FROM entries WHERE voyage_id = ? AND ${ACTIVE}`).get(vy.id).m;
   const floor = Math.max(Date.parse(vy.start), open ? Date.parse(open.start) : 0, lastEnd ? Date.parse(lastEnd) : 0) + 1000;
-  const now = new Date(Math.max(Date.now(), floor)).toISOString();
+  if (at && Date.parse(at) < floor) return res.status(409).json({ code: 'end_out_of_order', error: 'something was logged in this voyage after the End voyage tap' });
+  const now = new Date(at ? Date.parse(at) : Math.max(Date.now(), floor)).toISOString();
+  const src = at ? '-queued' : '';
   db.transaction(() => {
     if (open) {
       db.prepare('UPDATE entries SET end = ? WHERE id = ?').run(now, open.id);
-      audit('close', open.id, open.crew_id, open, { ...open, end: now }, 'voyage-end');
+      audit('close', open.id, open.crew_id, open, { ...open, end: now }, 'voyage-end' + src);
     }
-    db.prepare('UPDATE voyages SET end = ? WHERE id = ?').run(now, vy.id);
-    auditV('voyage-end', vy, vy, { ...vy, end: now }, 'end-voyage');
+    db.prepare('UPDATE voyages SET end = ?, end_op_id = ? WHERE id = ?').run(now, opId, vy.id);
+    auditV('voyage-end', vy, vy, { ...vy, end: now }, 'end-voyage' + src);
   })();
   res.json({ ok: true, voyageId: vy.id, end: now, closedEntryId: open ? open.id : null });
 });
@@ -663,15 +807,17 @@ app.get('/api/export.csv', (req, res) => {
 });
 
 // ---- dashboard: primary crew member (whose rest status shows on the main dashboard) ----
+// a crew member's phone always shows that crew member on its dashboard
+const dashCrewId = () => reqDevice && reqDevice.role === 'crew' ? reqDevice.crew_id : getSetting('primaryCrewId', '');
 app.get('/api/dashboard/settings', (req, res) => {
-  res.json({ primaryCrewId: getSetting('primaryCrewId', '') });
+  res.json({ primaryCrewId: dashCrewId() });
 });
 app.put('/api/dashboard/settings', (req, res) => {
   setSetting('primaryCrewId', String(req.body.primaryCrewId || ''));
   res.json({ ok: true });
 });
 app.get('/api/dashboard/hor-summary', (req, res) => {
-  const primaryCrewId = getSetting('primaryCrewId', '');
+  const primaryCrewId = dashCrewId();
   const crew = db.prepare('SELECT * FROM crew WHERE id = ? AND deleted_at IS NULL').get(primaryCrewId);
   if (!crew) return res.json({ configured: false });
   const open = db.prepare(`SELECT * FROM entries WHERE crew_id = ? AND end IS NULL AND ${ACTIVE}`).get(primaryCrewId);
