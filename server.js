@@ -40,10 +40,12 @@ for (const sql of [
   'ALTER TABLE entries ADD COLUMN deleted_reason TEXT',
   'ALTER TABLE crew ADD COLUMN deleted_at TEXT',
   'ALTER TABLE entries ADD COLUMN voyage_id TEXT',
-  'ALTER TABLE crew ADD COLUMN role TEXT'
+  'ALTER TABLE crew ADD COLUMN role TEXT',
+  'ALTER TABLE entries ADD COLUMN tap_id TEXT'
 ]) {
   try { db.exec(sql); } catch (e) { if (!/duplicate column/i.test(String(e.message))) throw e; }
 }
+db.exec('CREATE INDEX IF NOT EXISTS idx_entries_tap ON entries(crew_id, tap_id)');
 db.exec(`
   CREATE TABLE IF NOT EXISTS entry_audit (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -342,12 +344,27 @@ app.post('/api/crew/:id/entries', (req, res) => {
   })();
   res.json(row);
 });
-// quick-log: close any open entry for this crew member, open a new one of `type` at now
+// quick-log: close any open entry for this crew member, open a new one of `type` at now.
+// Offline queue (public/tapq.js): `tapId` makes a replay idempotent; `at` (ISO with zone) is the time the tap was made on the
+// device, sent only when a queued tap is replayed late. A late tap must fall after the open period began and inside a voyage.
+const MAX_TAP_AGE_MS = 30 * 86400000;
 app.post('/api/crew/:id/quicklog', (req, res) => {
   const { type } = req.body;
   if (!['rest', 'work'].includes(type)) return res.status(400).json({ error: 'type required' });
+  const tapId = req.body.tapId === undefined ? null : String(req.body.tapId);
+  if (tapId !== null && !/^[A-Za-z0-9_-]{1,64}$/.test(tapId)) return res.status(400).json({ error: 'tapId must be 1-64 letters, digits, _ or -' });
+  if (tapId) {   // already applied (the reply was lost) - or applied and since undone: never apply it twice
+    const seen = db.prepare('SELECT * FROM entries WHERE crew_id = ? AND tap_id = ?').get(req.params.id, tapId);
+    if (seen) return res.json({ ...seen, voyageId: seen.voyage_id, duplicate: true });
+  }
+  let at = null;
+  try { at = normTime(req.body.at); } catch (e) { return res.status(400).json({ error: e.message }); }
+  if (at && Date.parse(at) > Date.now() + FUTURE_TOL_MS) return res.status(400).json({ error: 'tap time is in the future' });
+  if (at && Date.parse(at) < Date.now() - MAX_TAP_AGE_MS) return res.status(400).json({ error: 'tap time is more than 30 days old' });
   const open = db.prepare(`SELECT * FROM entries WHERE crew_id = ? AND end IS NULL AND ${ACTIVE}`).get(req.params.id);
   if (open && open.type === type) return res.json({ ...open, voyageId: open.voyage_id }); // already in this state
+  if (at && open && Date.parse(at) <= Date.parse(open.start))
+    return res.status(409).json({ code: 'tap_out_of_order', error: 'a later period was logged before this tap reached the server', conflict: entryView(open) });
   let vy = activeVoyage(req.params.id);
   let decl = null;
   if (!vy) {   // a voyage starts with the first WORK tap, which carries the joining declaration
@@ -357,22 +374,29 @@ app.post('/api/crew/:id/quicklog', (req, res) => {
     if (decl.error) return res.status(400).json({ code: 'declaration_invalid', error: decl.error });
   }
   // never close an entry at or before its own start (clock skew): nudge forward one second
-  const nowMs = open ? Math.max(Date.now(), Date.parse(open.start) + 1000) : Date.now();
+  const nowMs = at ? Date.parse(at) : open ? Math.max(Date.now(), Date.parse(open.start) + 1000) : Date.now();
   const now = new Date(nowMs).toISOString();
+  if (at) {   // a late tap must not overlap what was logged since, nor start before the voyage (or overlap an earlier one)
+    const bad = vy ? checkEntry(req.params.id, { start: now, end: null }, open ? open.id : null, vy) : null;
+    if (bad) return res.status(bad.status).json({ code: 'tap_conflict', ...bad });
+    const hit = !vy && voyagesOverlap(req.params.id, now, null);
+    if (hit) return res.status(409).json({ code: 'tap_conflict', error: 'overlaps another voyage', conflict: voyageView(hit) });
+  }
+  const source = at ? 'quicklog-queued' : 'quicklog';
   let startedVoyage = false;
-  const row = { id: uid(), crew_id: req.params.id, voyage_id: null, type, start: now, end: null, note: '', created_at: now };
+  const row = { id: uid(), crew_id: req.params.id, voyage_id: null, type, start: now, end: null, note: '', created_at: new Date().toISOString(), tap_id: tapId };
   db.transaction(() => {
-    if (!vy) { vy = startVoyage(req.params.id, now, 'quicklog', decl); startedVoyage = true; }   // the first tap starts the voyage
+    if (!vy) { vy = startVoyage(req.params.id, now, source, decl); startedVoyage = true; }   // the first tap starts the voyage
     row.voyage_id = vy.id;
     if (open) {
       db.prepare('UPDATE entries SET end = ? WHERE id = ?').run(now, open.id);
-      audit('close', open.id, open.crew_id, open, { ...open, end: now }, 'quicklog');
+      audit('close', open.id, open.crew_id, open, { ...open, end: now }, source);
     }
-    db.prepare(`INSERT INTO entries (id, crew_id, voyage_id, type, start, end, note, created_at)
-      VALUES (@id, @crew_id, @voyage_id, @type, @start, @end, @note, @created_at)`).run(row);
-    audit('create', row.id, row.crew_id, null, row, 'quicklog');
+    db.prepare(`INSERT INTO entries (id, crew_id, voyage_id, type, start, end, note, created_at, tap_id)
+      VALUES (@id, @crew_id, @voyage_id, @type, @start, @end, @note, @created_at, @tap_id)`).run(row);
+    audit('create', row.id, row.crew_id, null, row, source);
   })();
-  res.json({ ...row, voyageId: vy.id, startedVoyage });
+  res.json({ ...row, voyageId: vy.id, startedVoyage, closedId: open ? open.id : null });
 });
 // ---- voyages ----
 app.get('/api/crew/:id/voyages', (req, res) => {

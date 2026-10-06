@@ -17,8 +17,9 @@ Server is Dell "Blairquhosh"; app on 127.0.0.1:8090 behind Caddy basic-auth and 
 
 ## Open items
 - Rotate exposed Nextcloud credential and sudo password; give `skipper` its own password; per-user accounts.
-- Offline queueing for Work/Rest taps; boat-device (NMEA/Signal K) feed to POST /api/positions; tides setup; AI bar stub; versioned API.
-- Vessel name still "Bluejay" (should be Alba Explorer); confirm voyage start 28 Sep 2026 00:00 BST.
+- Boat-device (NMEA/Signal K) feed to POST /api/positions; tides setup; AI bar stub; versioned API.
+- Vessel name "Bluejay" -> Alba Explorer and voyage 1 start (28 Sep 2026 00:00 BST = 2026-09-27T23:00:00Z): curl fix handed to Pabs 6 Oct 2026; confirm done.
+- No service worker: the app cannot be opened from cold while offline (queued taps only work with the page already loaded).
 - Unused: public/app.js, public/styles.css, public/geo.html, public/log.html (check before deleting).
 
 ## Lessons learned (problems met and fixes that work)
@@ -33,5 +34,6 @@ Pabs works from an iPhone terminal (SSH to the server) - long pastes get garbled
 - Maps: Leaflet/CDNs are unreachable in the sandbox, so the app has its own slippy-map engine (public/track.js). Tile error handling: keep failed tiles marked bad and retry on `online`, never remove-and-re-add (that hung the page offline). z-index order: grid 0, tiles 1, track 2.
 - iPhone cannot track in the background; recording only happens with the app open, on taps, voyage end, "Log position now", or a device POSTing to /api/positions. Do not promise continuous tracking.
 - Test stack in the sandbox: Playwright with `/opt/pw-browsers/chromium` (`NODE_PATH=$(npm root -g):$PWD/node_modules`); kill test servers with `fuser -k PORT/tcp`; font/icon 404s in the sandbox are expected. Earlier suites (apitest*.js, shot*.js) were in a scratch folder and are not in the repo - rebuild what you need.
+- Offline taps (public/tapq.js, both pages): saved to localStorage `cn_tapq` first, then POST quicklog with `tapId` (idempotent, survives undo) and, on a late replay, `at` (device time, skew-corrected from the server Date header). Server refuses a late tap that falls before the open period or outside a voyage (409, kept in `cn_tapq_failed`, shown on the Hours of rest page). Audit source `quicklog-queued` marks device-timed entries.
 - Mock geolocation gives constant timestamps in tests, so check counts of a source rather than "last".
 - Do not put secrets in the repo. Exposed earlier and still to rotate: a Nextcloud credential and the sudo password.

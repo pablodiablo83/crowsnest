@@ -11,6 +11,7 @@
     var r = await fetch(url, Object.assign({ cache: 'no-store' }, opt || {}));
     var d = r.headers.get('Date');
     if (d) { var t = Date.parse(d); if (!isNaN(t)) st.skew = t - Date.now(); }
+    window.CNTapQ.noteDate(r);
     if (!r.ok) throw new Error(url + ' -> ' + r.status);
     return r.json();
   }
@@ -30,6 +31,7 @@
 
   async function load() {
     try {
+      if (window.CNTapQ.pending().length) await window.CNTapQ.flush();   // send taps saved while offline first
       var s = await api('/api/dashboard/settings');
       var d = await api('/api/dashboard/hor-summary');
       if (!d.configured) {
@@ -44,10 +46,17 @@
       st.offline = false; st.loaded = true;
       if (!d.configured) { st.crewId = null; render(); return; }
       st.crewId = s.primaryCrewId; st.crewName = d.crewName;
-      st.mode = d.status; st.since = d.statusSince; st.comp = d.compliance; st.eng = d.engine || null; st.voyKnown = ('voyage' in d); st.voy = d.voyage || null; st.last = d.lastVoyage || null;
+      st.srvMode = st.mode = d.status; st.srvSince = st.since = d.statusSince; st.comp = d.compliance; st.eng = d.engine || null; st.voyKnown = ('voyage' in d); st.voy = d.voyage || null; st.last = d.lastVoyage || null;
       if (!st.vessel) { try { st.vessel = (await api('/api/vessel')).vessel || ''; } catch (e) {} }
     } catch (e) { st.offline = true; }
+    overlayQueue();
     render();
+  }
+  // taps saved on this phone but not yet on the server: show the latest as the current state
+  function overlayQueue() {
+    st.queued = st.crewId ? window.CNTapQ.pending(st.crewId).length : 0;
+    var l = st.crewId && window.CNTapQ.last(st.crewId);
+    st.mode = l ? l.type : st.srvMode; st.since = l ? l.at : st.srvSince;   // last state the server confirmed
   }
 
   // verdict: 'compliant' | 'indeterminate' | 'breach' (booleans accepted for the legacy fallback)
@@ -113,12 +122,18 @@
     $('heroLoad').style.display = st.loaded ? 'none' : '';
     $('heroSetup').style.display = st.loaded && !st.crewId ? '' : 'none';
     $('heroMain').style.display = st.crewId ? '' : 'none';
-    $('heroErr').style.display = st.offline && st.loaded ? '' : 'none';
+    var nf = window.CNTapQ.failed().length, he = $('heroErr');
+    var msg = [];
+    if (st.offline && st.loaded) msg.push('No connection \u2014 showing last known status.');
+    if (st.queued) msg.push(st.queued + ' tap' + (st.queued === 1 ? '' : 's') + ' saved on this phone, sent when back online.');
+    if (nf) msg.push(nf + ' saved tap' + (nf === 1 ? ' was' : 's were') + ' not applied \u2014 see Hours of rest.');
+    he.textContent = msg.join(' ');
+    he.style.display = msg.length ? '' : 'none';
     if (!st.crewId) return;
     $('heroName').textContent = st.crewName + (st.vessel ? ' · ' + st.vessel : '');
     var rest = st.mode === 'rest', work = st.mode === 'work';
     var lab = $('heroState');
-    var ashore = st.voyKnown && !st.voy;
+    var ashore = st.voyKnown && !st.voy && !st.queued;
     lab.textContent = rest ? 'RESTING' : work ? 'WORKING' : ashore ? 'ASHORE' : 'NOT LOGGING';
     $('heroDot').className = 'hdot' + (rest ? ' rest' : work ? ' work' : '');
     $('btnRest').className = 'hbtn rest' + (rest ? ' active' : '');
@@ -231,7 +246,7 @@
 
   async function tap(type) {
     if (st.busy || !st.crewId || st.mode === type) return;
-    var ashoreNow = st.voyKnown && !st.voy, decl = null;
+    var ashoreNow = st.voyKnown && !st.voy && !st.queued, decl = null;
     if (ashoreNow) {
       if (type !== 'work') { showToast('A voyage starts with the first WORK tap', false, 4500); return; }
       decl = await askDecl(true);
@@ -239,26 +254,30 @@
     }
     st.busy = true;
     $('hero').classList.add('busy');
-    try {
-      var prev = null, prevKnown = false;
-      try {
-        var es = await api('/api/crew/' + st.crewId + '/entries');
-        prevKnown = true;
-        if (es.length && !es[0].end) prev = es[0];
-      } catch (e) {}
-      var row = await api('/api/crew/' + st.crewId + '/quicklog', { method: 'POST', headers: J, body: JSON.stringify(decl ? { type: type, declaration: decl } : { type: type }) });
-      st.mode = row.type; st.since = row.start; st.offline = false;
-      render();
-      undoInfo = prevKnown && !(prev && prev.id === row.id) ? { kind: 'tap', newId: row.id, prev: prev, voyageId: row.startedVoyage ? row.voyageId : null } : null;
+    // saved on this phone first, then sent: a tap is never lost to a dropped connection
+    var item = window.CNTapQ.add(st.crewId, type, decl);
+    st.mode = type; st.since = item.at; st.queued = window.CNTapQ.pending(st.crewId).length;
+    render();
+    try { document.dispatchEvent(new CustomEvent('cn:tap', { detail: { type: type, startedVoyage: !!decl } })); } catch (e2) {}
+    var res = await window.CNTapQ.flush();
+    var sent = res.sent.find(function (x) { return x.item.tapId === item.tapId; });
+    var bad = res.failed.find(function (x) { return x.item.tapId === item.tapId; });
+    if (sent) {
+      var row = sent.row;
+      st.offline = false;
+      undoInfo = row.duplicate ? null : { kind: 'tap', newId: row.id, prev: row.closedId ? { id: row.closedId } : null, voyageId: row.startedVoyage ? row.voyageId : null };
       showToast((row.startedVoyage ? 'Voyage started \u00b7 ' : '') + 'Switched to ' + type.toUpperCase() + ' at ' + p2(new Date(row.start).getHours()) + ':' + p2(new Date(row.start).getMinutes()), !!undoInfo);
-      undoKeep = undoInfo;
-      try { document.dispatchEvent(new CustomEvent('cn:tap', { detail: { type: row.type, startedVoyage: !!row.startedVoyage } })); } catch (e2) {}
-      load();
-    } catch (e) {
-      showToast('Not saved — no connection. Tap again.', false, 6000);
+    } else if (bad) {
+      undoInfo = null;
+      showToast('Not saved \u2014 ' + bad.error, false, 8000);
+    } else {
+      undoInfo = { kind: 'queued', tapId: item.tapId };
+      showToast('No connection \u2014 ' + type.toUpperCase() + ' at ' + p2(new Date(item.at).getHours()) + ':' + p2(new Date(item.at).getMinutes()) + ' saved on this phone, sent when back online', true, 9000);
     }
+    undoKeep = undoInfo;
     st.busy = false;
     $('hero').classList.remove('busy');
+    load();
   }
   var undoKeep = null;
 
@@ -266,6 +285,10 @@
     var u = undoKeep || undoInfo; undoKeep = null;
     hideToast();
     if (!u) return;
+    if (u.kind === 'queued') {
+      if (!window.CNTapQ.remove(u.tapId)) showToast('Already sent \u2014 undo it on the Hours of rest page.', false, 6000);
+      load(); return;
+    }
     try {
       if (u.kind === 'end') await api('/api/crew/' + st.crewId + '/voyage/reopen', { method: 'POST', headers: J, body: JSON.stringify({ voyageId: u.voyageId, entryId: u.entryId }) });
       else await api('/api/crew/' + st.crewId + '/quicklog-undo', { method: 'POST', headers: J, body: JSON.stringify({ newId: u.newId, prevId: u.prev ? u.prev.id : null, voyageId: u.voyageId || null }) });
@@ -307,6 +330,7 @@
   document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
   window.addEventListener('pageshow', function (e) { if (e.persisted) load(); });
   window.addEventListener('online', load);
+  window.CNTapQ.onChange(function () { if (!st.busy) load(); });
   setInterval(load, 60000);
   setInterval(tick, 10000);
   load();

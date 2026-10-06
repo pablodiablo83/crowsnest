@@ -26,6 +26,8 @@
   function fromLocalInput(v) { return v ? new Date(v).toISOString() : null; }
   function curCrew() { return S.crew.find(function (c) { return c.id === S.crewId; }) || null; }
   function openEntry() { return S.entries.find(function (e) { return !e.end; }) || null; }
+  // the current period as this phone knows it: a tap saved offline (not yet on the server) wins over the server's open entry
+  function nowEntry() { var l = S.crewId && window.CNTapQ.last(S.crewId); return l ? { type: l.type, start: l.at, queued: true } : openEntry(); }
   function openVoyage() { return S.voyages.find(function (v) { return !v.end; }) || null; }
   function ms(iso) { return Date.parse(iso); }
   function typeWord(t) { return t === 'rest' ? 'Rest' : 'Work'; }
@@ -39,6 +41,7 @@
     if (opt.body !== undefined) init.body = JSON.stringify(opt.body);
     var r;
     try { r = await fetch(path, init); } catch (e) { var ne = new Error('No connection to the Crow’s Nest server.'); ne.offline = true; throw ne; }
+    window.CNTapQ.noteDate(r);
     var d = null; try { d = await r.json(); } catch (e) { /* not json */ }
     if (!r.ok) { var er = new Error((d && d.error) || ('Request failed (' + r.status + ')')); er.status = r.status; er.data = d || {}; throw er; }
     return d;
@@ -133,6 +136,7 @@
   /* ---------------------------------------------------------------- data */
   async function load() {
     try {
+      if (window.CNTapQ.pending().length) await window.CNTapQ.flush();   // send taps saved while offline first
       var r = await Promise.all([api('/api/crew'), api('/api/vessel'), api('/api/settings/pre-voyage'), api('/api/dashboard/settings')]);
       S.crew = r[0]; S.vessel = r[1]; S.policy = r[2].policy; S.primaryId = r[3].primaryCrewId;
       if (!S.crewId || !S.crew.find(function (c) { return c.id === S.crewId; })) {
@@ -196,11 +200,11 @@
   }
 
   /* ---------------------------------------------------------------- render: now */
-  function isAshore() { return !!(S.comp && ('voyage' in S.comp) && !S.comp.voyage); }
+  function isAshore() { return !!(S.comp && ('voyage' in S.comp) && !S.comp.voyage) && !(S.crewId && window.CNTapQ.last(S.crewId)); }
   function renderNow() {
     var el = $('#cardNow'); if (!el) return;
     keepFocus(el, function () {
-      var c = curCrew(), open = openEntry(), vy = S.comp && S.comp.voyage, ashore = isAshore();
+      var c = curCrew(), open = nowEntry(), vy = S.comp && S.comp.voyage, ashore = isAshore();
       var rest = open && open.type === 'rest', work = open && open.type === 'work';
       var state = rest ? 'Resting' : work ? 'Working' : ashore ? 'Ashore' : 'No period open';
       var html = '<div class="h-head"><div><h2>' + esc(c.name) + '</h2><p class="h-sub">' + (c.role ? esc(c.role) + ' · ' : '') + '<button type="button" class="h-note-link" data-act="crew-edit" data-id="' + esc(c.id) + '">Edit name or rank</button></p></div></div>';
@@ -221,8 +225,19 @@
         html += '<div class="h-voy"><span>' + (last ? 'Last voyage ' + dayName(ms(last.start)) + ' to ' + dayName(ms(last.end)) : 'No voyage yet. Hours are recorded and checked during a voyage.') + '</span>' +
           '<button type="button" class="h-link" data-act="voyage-add">Add an earlier voyage</button></div>';
       }
+      html += queueNote();
       el.innerHTML = html;
     });
+  }
+  // taps saved on this phone and waiting to be sent, and any the server refused
+  function queueNote() {
+    var q = window.CNTapQ.pending(S.crewId), f = window.CNTapQ.failed(), h = '';
+    if (q.length) h += '<p class="h-sub" role="status" style="margin-top:10px">' + q.length + ' tap' + (q.length === 1 ? '' : 's') + ' saved on this phone (' +
+      q.map(function (i) { return typeWord(i.type).toUpperCase() + ' ' + hm(ms(i.at)); }).join(', ') + '), sent when the connection returns. The record and checks below do not include ' + (q.length === 1 ? 'it' : 'them') + ' yet.</p>';
+    if (f.length) h += '<div class="h-err" role="alert" style="margin-top:10px">' + f.length + ' saved tap' + (f.length === 1 ? ' was' : 's were') + ' not applied:<ul>' +
+      f.map(function (x) { var cr = S.crew.find(function (c) { return c.id === x.item.crewId; }); return '<li>' + esc((cr ? cr.name + ': ' : '') + typeWord(x.item.type).toUpperCase() + ' at ' + dt(ms(x.item.at)) + ' — ' + x.error) + '</li>'; }).join('') +
+      '</ul>Add these by hand if they are right. <button type="button" class="h-note-link" data-act="tapq-dismiss">Dismiss</button></div>';
+    return h;
   }
 
   /* ---------------------------------------------------------------- render: checks */
@@ -629,7 +644,7 @@
   /* ---------------------------------------------------------------- tapping Work / Rest */
   async function tap(type) {
     if (S.busy || !S.crewId) return;
-    var open = openEntry();
+    var open = nowEntry();
     if (open && open.type === type) return;
     var ashore = isAshore(), decl = null;
     if (ashore) {
@@ -637,14 +652,29 @@
       decl = await declSheet(true); if (!decl) return;
     }
     S.busy = true;
-    try {
-      var row = await api('/api/crew/' + S.crewId + '/quicklog', { method: 'POST', body: decl ? { type: type, declaration: decl } : { type: type } });
+    // saved on this phone first, then sent: a tap is never lost to a dropped connection
+    var item = window.CNTapQ.add(S.crewId, type, decl);
+    renderNow();
+    var res = await window.CNTapQ.flush();
+    var sent = res.sent.find(function (x) { return x.item.tapId === item.tapId; });
+    var bad = res.failed.find(function (x) { return x.item.tapId === item.tapId; });
+    if (sent) {
+      var row = sent.row;
       await load();
-      toast((row.startedVoyage ? 'Voyage started. ' : '') + 'Switched to ' + type.toUpperCase() + ' at ' + hm(ms(row.start)), async function () {
-        try { await api('/api/crew/' + S.crewId + '/quicklog-undo', { method: 'POST', body: { newId: row.id, prevId: open ? open.id : null, voyageId: row.startedVoyage ? row.voyageId : null } }); await load(); }
+      toast((row.startedVoyage ? 'Voyage started. ' : '') + 'Switched to ' + type.toUpperCase() + ' at ' + hm(ms(row.start)), row.duplicate ? null : async function () {
+        try { await api('/api/crew/' + S.crewId + '/quicklog-undo', { method: 'POST', body: { newId: row.id, prevId: row.closedId || null, voyageId: row.startedVoyage ? row.voyageId : null } }); await load(); }
         catch (err) { toast('Undo failed. Check the entries list.', null, 6000); }
       });
-    } catch (err) { toast(explain(err).text, null, 7000); }
+    } else if (bad) {
+      await load();
+      toast('Not saved: ' + bad.error, null, 8000);
+    } else {
+      renderAll();
+      toast('No connection. ' + type.toUpperCase() + ' at ' + hm(ms(item.at)) + ' saved on this phone, sent when back online.', function () {
+        if (!window.CNTapQ.remove(item.tapId)) toast('Already sent. Undo it from the entries list.', null, 6000);
+        renderAll();
+      });
+    }
     S.busy = false;
   }
 
@@ -709,6 +739,7 @@
       case 'crew-edit': crewSheet(S.crew.find(function (c) { return c.id === id; })); break;
       case 'crew-del': removeCrew(id); break;
       case 'tap': tap(el.getAttribute('data-k')); break;
+      case 'tapq-dismiss': window.CNTapQ.clearFailed(); break;
       case 'settings': settingsSheet(el.getAttribute('data-focus')); break;
       case 'entry-add': entrySheet({}); break;
       case 'entry-edit': entrySheet({ entry: S.entries.find(function (e) { return e.id === id; }) }); break;
@@ -763,5 +794,6 @@
   setInterval(function () { if (!topSheet() && !document.hidden) load(); }, 60000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden && !topSheet()) load(); });
   window.addEventListener('online', function () { if (!topSheet()) load(); });
+  window.CNTapQ.onChange(function () { if (S.busy) return; if (topSheet()) renderNow(); else load(); });
   load();
 })();
