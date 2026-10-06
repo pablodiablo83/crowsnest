@@ -39,5 +39,5 @@ const iso=ms=>new Date(ms).toISOString();
   ok(r.s===409&&r.d.code==='voyage_not_started','queued REST after voyage end -> 409');
   r=await req('POST',`/api/crew/${c.id}/quicklog`,{type:'work',tapId:'t6',at:iso(now-10*60000),declaration:decl});
   ok(r.s===409&&r.d.code==='tap_conflict','queued voyage start overlapping the ended voyage -> 409');
-  console.log(fails?fails+' FAILED':'ALL PASS');
+  console.log(fails?fails+' FAILED':'ALL PASS'); process.exit(fails?1:0);
 })();

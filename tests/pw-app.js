@@ -40,7 +40,7 @@ const BRIDGE = `
 (async () => {
   const decl = { rested: 'yes', ackRecords: true, ackEmergency: true, under18: false, declaredBy: 'seafarer' };
   const crew = await api('POST', '/api/crew', { name: 'Pabs' });
-  const br = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const br = await chromium.launch({ executablePath: require('fs').existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined });
   const ctx = await br.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addInitScript(BRIDGE);
   const errs = [], page = await ctx.newPage();

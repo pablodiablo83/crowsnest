@@ -1,0 +1,35 @@
+# Compile the iOS app for the simulator, unsigned: proves the app builds without needing an Apple account.
+# Runs on a GitHub-hosted Mac (private repos: Mac minutes count 10x against the free allowance), so only when app/ changes
+# or by hand (Actions > iOS build check > Run workflow).
+name: iOS build check
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/ios-build.yml']
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - run: npm ci
+      - name: Copy the web pages into the app and sync plugins
+        run: npm run sync
+      - name: Compile for the iOS simulator (unsigned)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -60

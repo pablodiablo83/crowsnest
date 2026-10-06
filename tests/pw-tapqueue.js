@@ -7,7 +7,7 @@ let fails=0; const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c) fails++
   const c=await (await fetch(B+'/api/crew',{method:'POST',headers:J,body:JSON.stringify({name:'Pabs'})})).json();
   await fetch(B+`/api/crew/${c.id}/quicklog`,{method:'POST',headers:J,body:JSON.stringify({type:'work',declaration:decl})});
   const ents=async()=> (await (await fetch(B+`/api/crew/${c.id}/entries`)).json());
-  const br=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+  const br=await chromium.launch({executablePath:require('fs').existsSync('/opt/pw-browsers/chromium')?'/opt/pw-browsers/chromium':undefined});
   const ctx=await br.newContext({viewport:{width:390,height:844}});
   const errs=[]; 
   const page=await ctx.newPage(); page.on('pageerror',e=>errs.push('dash: '+e.message));
@@ -62,5 +62,5 @@ let fails=0; const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c) fails++
   await p3.goto(B+'/track.html'); await p3.waitForTimeout(1500);
   ok(errs.length===0,'no page errors '+errs.join('; '));
   await br.close();
-  console.log(fails?fails+' FAILED':'ALL PASS');
+  console.log(fails?fails+' FAILED':'ALL PASS'); process.exit(fails?1:0);
 })().catch(e=>{console.log('ERROR',e.message);process.exit(1);});
