@@ -17,6 +17,11 @@ const bearer = t => ({ Authorization: 'Bearer ' + t });
   ok(r.s === 401 && r.d.code === 'unauthorised', 'v1 without token -> 401');
   r = await req('GET', '/api/v1/vessel', null, bearer('x'.repeat(43)));
   ok(r.s === 401, 'v1 with unknown token -> 401');
+  r = await req('GET', '/API/V1/vessel');
+  ok(r.s === 401, 'v1 gate is case-insensitive (/API/V1 needs a token too)');
+  const U = new URL(B), raw = p => new Promise(res => require('http').get({ host: U.hostname, port: U.port, path: p }, x => { x.resume(); res(x.statusCode); }));   // a URL string would normalise '..'
+  const rs = await raw('/api/v1/../vessel');
+  ok(rs === 401 || rs === 404, 'dot-segments do not bypass the v1 gate (' + rs + ')');
   r = await req('GET', '/api/v1/time');
   ok(r.s === 200 && Math.abs(Date.parse(r.d.now) - Date.now()) < 5000, 'v1 time is open');
 

@@ -314,14 +314,14 @@ function crewAllowed(dev, method, p) {
 }
 
 app.use((req, res, next) => {
-  if (!/^\/api\/v1(\/|$)/.test(req.path)) return next();
+  if (!/^\/api\/v1(\/|$)/i.test(req.path)) return next();   // case-insensitive, like Express routing
   const origin = req.get('Origin');
   if (origin && APP_ORIGINS.includes(origin)) {
     res.set({ 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin', 'Access-Control-Expose-Headers': 'Date',
       'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Source', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS', 'Access-Control-Max-Age': '600' });
   }
   if (req.method === 'OPTIONS') return res.sendStatus(204);
-  req.url = req.url.replace(/^\/api\/v1/, '/api');
+  req.url = req.url.replace(/^\/api\/v1/i, '/api');
   if (req.path === '/api/auth/pair' || req.path === '/api/time') return next();
   const m = String(req.get('Authorization') || '').match(/^Bearer\s+([A-Za-z0-9_-]{20,100})$/);
   const dev = m && db.prepare('SELECT * FROM devices WHERE token_hash = ? AND revoked_at IS NULL').get(sha256(m[1]));
