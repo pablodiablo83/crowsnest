@@ -5,3 +5,7 @@ node_modules/
 .env
 caddy/
 cloudflared/
+*.bak
+*.bak-*
+*.bak.*
+engine.v*-bak*/
