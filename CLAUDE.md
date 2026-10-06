@@ -20,3 +20,18 @@ Server is Dell "Blairquhosh"; app on 127.0.0.1:8090 behind Caddy basic-auth and 
 - Offline queueing for Work/Rest taps; boat-device (NMEA/Signal K) feed to POST /api/positions; tides setup; AI bar stub; versioned API.
 - Vessel name still "Bluejay" (should be Alba Explorer); confirm voyage start 28 Sep 2026 00:00 BST.
 - Unused: public/app.js, public/styles.css, public/geo.html, public/log.html (check before deleting).
+
+## Lessons learned (problems met and fixes that work)
+Pabs works from an iPhone terminal (SSH to the server) - long pastes get garbled and logs cost tokens.
+- Large pasted scripts/base64 payloads garbled in the terminal. Fix: use git + `deploy`; never ask him to paste more than ~30 lines. If a paste is unavoidable, split into small parts and verify an md5 before acting.
+- Server output: always `2>&1 | tail -15`. Ask for the last 10-15 lines, not whole logs or attachments.
+- Prefer command-line saves (heredocs) over nano. Use `bash <<'RUN' ... RUN` for multi-line blocks.
+- Safari double login on app.crows-nest.co.uk: Safari fetches favicon/apple-touch-icon/manifest without credentials, giving a second 401 prompt. Fix (applied in Caddy): exempt those paths from basicauth. Confirm with Pabs that it is gone.
+- Server has no node on the host: do data fixes with `curl` against the local API (127.0.0.1:8090), not node scripts.
+- Deploy safety: `deploy.sh` backs up `data/` to `bak-data-*`, fast-forwards only, rebuilds, health-checks, rolls back on failure. A rollback leaves origin ahead; fix forward and push again.
+- Hours of rest page: gap-fill must round start up / end down to the minute (else 409 overlap); editing only a note must keep the original ISO start/end (else 409 overlap).
+- Maps: Leaflet/CDNs are unreachable in the sandbox, so the app has its own slippy-map engine (public/track.js). Tile error handling: keep failed tiles marked bad and retry on `online`, never remove-and-re-add (that hung the page offline). z-index order: grid 0, tiles 1, track 2.
+- iPhone cannot track in the background; recording only happens with the app open, on taps, voyage end, "Log position now", or a device POSTing to /api/positions. Do not promise continuous tracking.
+- Test stack in the sandbox: Playwright with `/opt/pw-browsers/chromium` (`NODE_PATH=$(npm root -g):$PWD/node_modules`); kill test servers with `fuser -k PORT/tcp`; font/icon 404s in the sandbox are expected. Earlier suites (apitest*.js, shot*.js) were in a scratch folder and are not in the repo - rebuild what you need.
+- Mock geolocation gives constant timestamps in tests, so check counts of a source rather than "last".
+- Do not put secrets in the repo. Exposed earlier and still to rotate: a Nextcloud credential and the sudo password.
