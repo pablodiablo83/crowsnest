@@ -20,7 +20,7 @@ Cloudflare tunnel -> Caddy (basic auth for the web; /api/v1/* let through) -> se
 | Server: pairing codes, device tokens, `/api/v1`, CORS, crew-only phones, phone named in the audit | Built, API-tested (`tests/api-v1.js`) | High |
 | Offline outbox: taps, End voyage, new entries, positions; replay applied once; refused items shown | Built, browser-tested | High |
 | App behaviour (fake Capacitor bridge in Chromium): pairing, opening offline from the cache, iOS wiping web storage, background positions, print, phone removed | Built, emulation-tested (`tests/pw-app.js`) | High in emulation; **not yet run on a real iPhone** |
-| Xcode project (`app/ios`), plugins via Swift Package Manager, icon, splash, Info.plist | Generated on Linux | Moderate: first real compile is on the Mac or in CI (`iOS build check`) |
+| Xcode project (`app/ios`), plugins via Swift Package Manager, icon, splash, Info.plist | Compiles on Apple's toolchain in CI (`iOS build check`, BUILD SUCCEEDED with all 6 plugins) | High |
 | TestFlight upload from GitHub Actions | Written, not run (needs Apple account) | Moderate |
 | Background tracking on iOS | Plugin wired up | Moderate: stops if the app is swiped away. iOS can pause it. Check battery on a passage |
 
@@ -48,6 +48,7 @@ Cloudflare tunnel -> Caddy (basic auth for the web; /api/v1/* let through) -> se
    git clone https://github.com/pablodiablo83/crowsnest.git && cd crowsnest/app
    npm ci
    npm run sync      # copies ../public into the app and wires the plugins
+   npm run doctor    # checks Xcode, Node and the server; says what to fix
    npm run open      # opens Xcode
    ```
 4. In Xcode, select the **App** target > **Signing & Capabilities**:
