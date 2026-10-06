@@ -16,7 +16,8 @@
   function idOf(i) { return i.opId || i.tapId; }
   function kindOf(i) { return i.kind || 'tap'; }
   // pages call this with any server response so queued times use the server's clock
-  function noteDate(r) { var d = r && r.headers && r.headers.get('Date'); if (d) { var t = Date.parse(d); if (!isNaN(t)) skew = t - Date.now(); } }
+  // (the Date header is whole seconds: the server's clock is somewhere in that second, so take its middle)
+  function noteDate(r) { var d = r && r.headers && r.headers.get('Date'); if (d) { var t = Date.parse(d); if (!isNaN(t)) skew = t + 500 - Date.now(); } }
   function nowIso() { return new Date(Date.now() + skew).toISOString(); }
 
   function push(item) {

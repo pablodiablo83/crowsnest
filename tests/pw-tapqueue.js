@@ -25,7 +25,8 @@ let fails=0; const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c) fails++
   await page.screenshot({path:SP+'/dash-offline.png'});
   ok((await ents()).length===1,'server still has 1 entry while offline');
   await ctx.setOffline(false);
-  await page.waitForFunction(()=>!/saved on this phone/.test(document.getElementById('heroErr').textContent),null,{timeout:15000});
+  await page.waitForFunction(()=>CNTapQ.pending().length===0,null,{timeout:15000});
+  ok((await page.evaluate(()=>CNTapQ.failed().length))===0,'nothing refused on reconnect');
   let e=await ents();
   ok(e.length===3&&e[1].type==='rest'&&e[0].type==='work'&&!e[0].end,'after reconnect: WORK, REST, WORK in order');
   ok(Date.parse(e[1].end)-Date.parse(e[1].start)>=1000,'queued REST kept its own tap times');
@@ -46,7 +47,8 @@ let fails=0; const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c) fails++
   await p2.waitForFunction(()=>/saved on this phone/.test(document.getElementById('cardNow').textContent));
   ok(/Resting/.test(await p2.textContent('#cardNow .h-state')),'HoR page shows Resting offline');
   await p2.screenshot({path:SP+'/hor-offline.png'});
-  // a conflicting entry logged elsewhere while this phone is offline
+  // a conflicting entry logged elsewhere while this phone is offline (well clear of the 2 s clock tolerance)
+  await new Promise(r=>setTimeout(r,2500));
   await fetch(B+`/api/crew/${c.id}/quicklog`,{method:'POST',headers:J,body:JSON.stringify({type:'rest'})});
   await new Promise(r=>setTimeout(r,1200));
   await fetch(B+`/api/crew/${c.id}/quicklog`,{method:'POST',headers:J,body:JSON.stringify({type:'work'})});

@@ -472,7 +472,7 @@ app.post('/api/crew/:id/entries', (req, res) => {
 // quick-log: close any open entry for this crew member, open a new one of `type` at now.
 // Offline queue (public/tapq.js): `tapId` makes a replay idempotent; `at` (ISO with zone) is the time the tap was made on the
 // device, sent only when a queued tap is replayed late. A late tap must fall after the open period began and inside a voyage.
-const MAX_TAP_AGE_MS = 30 * 86400000;
+const MAX_TAP_AGE_MS = 30 * 86400000, CLOCK_TOL_MS = 2000;
 const OP_ID = /^[A-Za-z0-9_-]{1,64}$/;
 // A time sent by the phone for something done earlier offline: zone required, not in the future, not more than 30 days old.
 function lateTime(v) {
@@ -494,6 +494,8 @@ app.post('/api/crew/:id/quicklog', (req, res) => {
   try { at = lateTime(req.body.at); } catch (e) { return res.status(400).json({ error: 'tap ' + e.message }); }
   const open = db.prepare(`SELECT * FROM entries WHERE crew_id = ? AND end IS NULL AND ${ACTIVE}`).get(req.params.id);
   if (open && open.type === type) return res.json({ ...open, voyageId: open.voyage_id }); // already in this state
+  // the phone's clock is only corrected to about a second: a tap up to 2 s "before" the open period is the next tap, placed just after it
+  if (at && open && Date.parse(at) <= Date.parse(open.start) && Date.parse(open.start) - Date.parse(at) < CLOCK_TOL_MS) at = new Date(Date.parse(open.start) + 1000).toISOString();
   if (at && open && Date.parse(at) <= Date.parse(open.start))
     return res.status(409).json({ code: 'tap_out_of_order', error: 'a later period was logged before this tap reached the server', conflict: entryView(open) });
   let vy = activeVoyage(req.params.id);
