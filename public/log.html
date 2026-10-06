@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Crow's Nest — Log</title>
+<link rel="icon" type="image/png" href="/assets/icon.png">
+<link rel="apple-touch-icon" href="/assets/icon.png">
+<link rel="manifest" href="/manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+<div class="dwrap">
+  <a class="lback" href="/">&larr; Dashboard</a>
+  <header class="dheader" style="padding-top:0;">
+    <img src="/assets/icon.png" alt="" class="dicon">
+    <span class="dtitle">Log</span>
+  </header>
+
+  <div class="lbox">
+    <textarea id="logText" placeholder="Type a log entry. The date and time are stamped when you save." maxlength="2000"></textarea>
+    <button class="lbtn" id="logSave">Add to log</button>
+    <div class="lmsg" id="logMsg"></div>
+  </div>
+
+  <div id="logList"></div>
+  <div class="dsub" id="logEmpty" style="display:none;">No entries yet.</div>
+
+  <div class="llinks">
+    <span id="logTotal"></span>
+    <a href="/api/log/export.txt">Export .txt</a>
+  </div>
+  <div class="dsub" style="margin-top:10px;">Entries cannot be edited or deleted. To correct something, add a new entry.</div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const p2 = n => String(n).padStart(2, '0');
+
+function stamp(iso) {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return `${date} ${p2(d.getHours())}:${p2(d.getMinutes())} (${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}Z)`;
+}
+
+function render(data) {
+  const list = $('logList');
+  list.textContent = '';
+  data.entries.forEach(e => {
+    const row = document.createElement('div'); row.className = 'lentry';
+    const ts = document.createElement('div'); ts.className = 'lts'; ts.textContent = stamp(e.ts);
+    const tx = document.createElement('div'); tx.className = 'ltxt'; tx.textContent = e.text;
+    row.append(ts, tx); list.append(row);
+  });
+  $('logEmpty').style.display = data.entries.length ? 'none' : 'block';
+  $('logTotal').textContent = `${data.total} entr${data.total === 1 ? 'y' : 'ies'}` +
+    (data.entries.length < data.total ? ` (latest ${data.entries.length} shown)` : '');
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/log?limit=500');
+    if (!r.ok) throw new Error(r.status);
+    render(await r.json());
+  } catch (e) { $('logMsg').textContent = 'Could not load the log.'; }
+}
+
+$('logSave').addEventListener('click', async () => {
+  const text = $('logText').value.trim();
+  if (!text) return;
+  $('logSave').disabled = true; $('logMsg').textContent = '';
+  try {
+    const r = await fetch('/api/log', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    if (!r.ok) throw new Error(r.status);
+    $('logText').value = '';
+    await load();
+  } catch (e) {
+    $('logMsg').textContent = 'Not saved. Your text is still in the box. Try again.';
+  }
+  $('logSave').disabled = false;
+});
+
+load();
+</script>
+</body>
+</html>

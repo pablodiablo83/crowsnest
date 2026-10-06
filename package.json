@@ -1,0 +1,14 @@
+{
+  "name": "crowsnest-hours-of-rest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Crow's Nest — self-hosted Hours of Rest logger",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "better-sqlite3": "^11.3.0"
+  }
+}

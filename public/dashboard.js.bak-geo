@@ -1,0 +1,212 @@
+// Crow's Nest — main dashboard
+
+const WMO_ICON = c => {
+  if (c === 0) return '☀️';
+  if (c <= 2) return '⛅';
+  if (c === 3) return '☁️';
+  if (c <= 48) return '🌫️';
+  if (c <= 67) return '🌦️';
+  if (c <= 77) return '🌨️';
+  if (c <= 82) return '🌦️';
+  if (c <= 86) return '🌨️';
+  return '⛈️';
+};
+const COMPASS = d => {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(d / 22.5) % 16];
+};
+const ARROW = d => `<span style="display:inline-block;transform:rotate(${d}deg);">&#8593;</span>`;
+const $ = id => document.getElementById(id);
+const p2 = n => String(n).padStart(2, '0');
+
+async function getJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} -> ${r.status}`);
+  return r.json();
+}
+function setText(id, text) { $(id).innerHTML = text; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ---------- Weather + wind ----------
+async function loadWeatherAndWind(lat, lon) {
+  try {
+    const d = await getJson(`/api/weather?lat=${lat}&lon=${lon}`);
+    if (d.error) throw new Error(d.error);
+    setText('weatherIcon', WMO_ICON(d.weatherCode));
+    setText('weatherTemp', `${Math.round(d.temperatureC)}&deg;C`);
+    setText('weatherSub', 'Open-Meteo forecast');
+    setText('windArrow', ARROW(d.windDirectionDeg));
+    setText('windSpeed', `${Math.round(d.windSpeedKn)}kn`);
+    setText('windSub', `${COMPASS(d.windDirectionDeg)} &middot; gusts ${Math.round(d.windGustsKn)}kn`);
+  } catch (e) {
+    setText('weatherSub', 'Weather unavailable');
+    setText('windSub', 'Weather unavailable');
+  }
+}
+
+// ---------- Tides ----------
+async function loadTides() {
+  try {
+    const d = await getJson('/api/tides');
+    if (!d.configured) { setText('tidesSub', 'Not set up yet &mdash; needs a tide data provider'); return; }
+    if (d.error) { setText('tidesSub', 'Tide data unavailable'); return; }
+    const next = (d.events || []).slice(0, 2);
+    if (!next.length) { setText('tidesSub', 'No upcoming events returned'); return; }
+    const fmt = iso => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    setText('tidesSub', next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM}m`).join('<br>'));
+  } catch (e) {
+    setText('tidesSub', 'Tide data unavailable');
+  }
+}
+
+// ---------- Hours of rest ----------
+async function loadHorSummary() {
+  try {
+    const d = await getJson('/api/dashboard/hor-summary');
+    if (!d.configured) { setText('horSub', 'Tap to add crew &amp; start logging &rarr;'); return; }
+    const mins = d.compliance.rest24Minutes;
+    const pct = Math.max(0, Math.min(1, mins / d.compliance.thresholds.min10h));
+    $('horRingFill').style.strokeDashoffset = String(326.7 * (1 - pct));
+    setText('horRingCenter', `${Math.floor(mins / 60)}h<br>${Math.round(mins % 60)}m`);
+    const label = d.status === 'rest' ? 'Resting' : d.status === 'work' ? 'Working' : 'No open period';
+    setText('horSub', `${d.crewName} &middot; ${label}`);
+  } catch (e) {
+    setText('horSub', 'Hours of Rest unavailable');
+  }
+}
+
+// ---------- Log tile ----------
+async function loadLogTile() {
+  try {
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    const d = await getJson(`/api/log?limit=1&since=${encodeURIComponent(midnight.toISOString())}`);
+    setText('logCount', String(d.today));
+    setText('logCountSub', d.today === 1 ? 'entry today' : 'entries today');
+    if (!d.entries.length) { setText('logLast', 'Nothing logged yet &mdash; tap to start'); return; }
+    const e = d.entries[0], t = new Date(e.ts);
+    setText('logLast', `${p2(t.getHours())}:${p2(t.getMinutes())} &middot; ${esc(e.text)}`);
+  } catch (e) {
+    setText('logLast', 'Log unavailable');
+  }
+}
+
+// ---------- Position ----------
+function ddm(v, pos, neg) {
+  const a = Math.abs(v), deg = Math.floor(a), min = (a - deg) * 60;
+  const degStr = String(deg).padStart(pos === 'N' ? 2 : 3, '0');
+  return `${degStr}&deg;${min.toFixed(3).padStart(6, '0')}&prime;${v >= 0 ? pos : neg}`;
+}
+function ddmPlain(v, pos, neg) {
+  const a = Math.abs(v), deg = Math.floor(a), min = (a - deg) * 60;
+  return `${String(deg).padStart(pos === 'N' ? 2 : 3, '0')}\u00B0${min.toFixed(3).padStart(6, '0')}\u2032${v >= 0 ? pos : neg}`;
+}
+function ageText(ts) {
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  return `${Math.round(m / 60)} h ago`;
+}
+
+let fix = null;          // { lat, lon, acc, ts, source }
+let lastWeatherAt = 0;
+
+function saveFix() {
+  try { localStorage.setItem('cn_fix', JSON.stringify(fix)); } catch (e) {}
+}
+function loadSavedFix() {
+  try { return JSON.parse(localStorage.getItem('cn_fix') || 'null'); } catch (e) { return null; }
+}
+
+async function lookupPlace(f) {
+  try {
+    const d = await getJson(`/api/place?lat=${f.lat}&lon=${f.lon}`);
+    if (fix === f) setText('locName', d.name ? esc(d.name) : 'Open water');
+  } catch (e) {
+    if (fix === f) setText('locName', 'Position');
+  }
+}
+
+function showFix() {
+  setText('locDdm', `${ddm(fix.lat, 'N', 'S')}<br>${ddm(fix.lon, 'E', 'W')}`);
+  setText('locDec', `${fix.lat.toFixed(5)}, ${fix.lon.toFixed(5)}`);
+  const src = fix.source === 'gps' ? 'GPS' : fix.source === 'manual' ? 'Manual' : 'Last known';
+  const acc = fix.acc ? ` &plusmn;${Math.round(fix.acc)} m` : '';
+  setText('locMeta', `${src}${acc} &middot; ${ageText(fix.ts)} &middot; tap to copy`);
+}
+
+function setFix(lat, lon, acc, source) {
+  const moved = !fix || Math.abs(fix.lat - lat) > 0.005 || Math.abs(fix.lon - lon) > 0.005;
+  fix = { lat, lon, acc, ts: Date.now(), source };
+  saveFix();
+  showFix();
+  if (moved) { setText('locName', 'Finding place…'); lookupPlace(fix); }
+  if (Date.now() - lastWeatherAt > 15 * 60 * 1000) { lastWeatherAt = Date.now(); loadWeatherAndWind(lat, lon); }
+}
+
+function noFix() {
+  const saved = loadSavedFix();
+  if (!fix && saved && Number.isFinite(saved.lat) && Number.isFinite(saved.lon)) {
+    fix = { lat: saved.lat, lon: saved.lon, acc: null, ts: saved.ts || Date.now(), source: 'saved' };
+    showFix(); setText('locName', 'Last known position'); lookupPlace(fix);
+    lastWeatherAt = Date.now(); loadWeatherAndWind(fix.lat, fix.lon);
+  } else if (!fix) {
+    setText('locName', 'No position fix'); setText('locDdm', '—'); setText('locMeta', 'Enter it below');
+    setText('weatherSub', 'Needs a position'); setText('windSub', 'Needs a position');
+  }
+  $('locationBox').style.display = 'block';
+}
+
+function requestFix() {
+  if (!navigator.geolocation) { noFix(); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => { $('locationBox').style.display = 'none';
+      setFix(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, 'gps'); },
+    () => noFix(),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+  );
+}
+
+$('manualLocBtn').addEventListener('click', () => {
+  const lat = parseFloat($('manualLat').value), lon = parseFloat($('manualLon').value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    alert('Enter valid numbers: latitude -90 to 90, longitude -180 to 180.'); return;
+  }
+  $('locationBox').style.display = 'none';
+  lastWeatherAt = 0;
+  setFix(lat, lon, null, 'manual');
+});
+
+async function copyFix() {
+  if (!fix) return;
+  const text = `${ddmPlain(fix.lat, 'N', 'S')} ${ddmPlain(fix.lon, 'E', 'W')} (${fix.lat.toFixed(5)}, ${fix.lon.toFixed(5)})`;
+  try { await navigator.clipboard.writeText(text); setText('locMeta', 'Copied'); }
+  catch (e) { setText('locMeta', 'Copy not available'); }
+  setTimeout(() => { if (fix) showFix(); }, 1500);
+}
+$('locCard').addEventListener('click', copyFix);
+$('locCard').addEventListener('keydown', e => { if (e.key === 'Enter') copyFix(); });
+
+// ---------- AI bar (holding) ----------
+$('agentForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const text = $('agentInput').value.trim();
+  if (!text) return;
+  const box = $('agentReply');
+  box.style.display = 'block'; box.textContent = '…';
+  try {
+    const r = await fetch('/api/agent', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
+    });
+    const d = await r.json();
+    box.textContent = d.reply || d.error || 'No reply.';
+  } catch (e) { box.textContent = 'Could not reach the server.'; }
+});
+
+// ---------- start ----------
+requestFix();
+setInterval(requestFix, 60000);
+setInterval(() => { if (fix) showFix(); }, 30000);
+loadHorSummary();
+loadTides();
+loadLogTile();
+setInterval(() => { loadHorSummary(); loadLogTile(); }, 120000);

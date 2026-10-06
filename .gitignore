@@ -1,0 +1,7 @@
+data/
+bak-*
+node_modules/
+*.b64
+.env
+caddy/
+cloudflared/

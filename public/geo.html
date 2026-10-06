@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crow's Nest — Position test</title>
+<style>
+body{font:15px/1.5 -apple-system,Helvetica,Arial,sans-serif;background:#00154C;color:#fff;margin:0;padding:16px;}
+pre{white-space:pre-wrap;background:rgba(255,255,255,.08);padding:12px;border-radius:10px;font-size:13px;}
+button{padding:12px 18px;font-size:16px;border:0;border-radius:10px;background:#0C829B;color:#fff;}
+a{color:#28A7C4;}
+</style>
+</head>
+<body>
+<h3>Position test</h3>
+<button id="go">Run test</button>
+<pre id="out">Tap Run test. Allow location if asked.</pre>
+<p><a href="/">Back to dashboard</a></p>
+<script>
+const out = document.getElementById('out');
+const log = s => { out.textContent += '\n' + s; };
+const NAMES = ['', 'permission denied', 'position unavailable', 'timeout'];
+
+function tryPos(label, opts) {
+  return new Promise(res => {
+    const t0 = Date.now();
+    navigator.geolocation.getCurrentPosition(
+      p => { log(label + ': OK in ' + (Date.now() - t0) + ' ms, accuracy ' + Math.round(p.coords.accuracy) + ' m, ' + p.coords.latitude.toFixed(5) + ', ' + p.coords.longitude.toFixed(5)); res(); },
+      e => { log(label + ': FAILED in ' + (Date.now() - t0) + ' ms, code ' + e.code + ' (' + (NAMES[e.code] || '?') + ') ' + e.message); res(); },
+      opts
+    );
+  });
+}
+
+async function jsVersion() {
+  const tests = [['cached', '/dashboard.js'], ['fresh', '/dashboard.js?x=' + Date.now()]];
+  for (const [name, url] of tests) {
+    try {
+      const t = await (await fetch(url)).text();
+      log('dashboard.js (' + name + '): ' + t.length + ' bytes, ' + (t.includes('sameSpot') ? 'NEW version' : 'OLD version'));
+    } catch (e) { log('dashboard.js (' + name + '): fetch failed'); }
+  }
+}
+
+document.getElementById('go').onclick = async () => {
+  out.textContent = 'Running...';
+  log('secure context: ' + window.isSecureContext);
+  log('home-screen app mode: ' + (navigator.standalone === true));
+  log('geolocation API present: ' + !!navigator.geolocation);
+  try {
+    const s = await navigator.permissions.query({ name: 'geolocation' });
+    log('permission state: ' + s.state);
+  } catch (e) { log('permission state: not reported by this browser'); }
+  await jsVersion();
+  if (!navigator.geolocation) return;
+  await tryPos('quick fix (8 s limit)', { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
+  await tryPos('GPS fix (25 s limit)', { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 });
+  log('done');
+};
+</script>
+</body>
+</html>

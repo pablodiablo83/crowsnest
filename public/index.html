@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Crow's Nest — Dashboard</title>
+<link rel="icon" type="image/png" href="/assets/icon.png">
+<link rel="apple-touch-icon" href="/assets/icon.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dashboard.css?v=7">
+</head>
+<body>
+<div class="dwrap">
+  <header class="dheader">
+    <img src="/assets/icon.png" alt="" class="dicon">
+    <span class="dtitle">CrowsNest</span>
+  </header>
+
+  <form class="dagent" id="agentForm" autocomplete="off">
+    <input type="text" id="agentInput" placeholder="Ask or tell Crow's Nest…" enterkeyhint="send" aria-label="Assistant">
+    <button type="submit" aria-label="Send">&#10148;</button>
+  </form>
+  <div class="dagent-reply" id="agentReply" style="display:none;"></div>
+
+  <section class="hero" id="hero" aria-label="Hours of rest">
+    <div id="heroLoad" class="dsub">Loading&hellip;</div>
+    <div id="heroSetup" style="display:none;">
+      <div class="dlabel">Hours of Rest</div>
+      <div class="dsub" style="margin:0 0 10px;">Add yourself to start tap-to-log.</div>
+      <div class="drow"><input type="text" id="heroNewName" placeholder="Your name" autocomplete="off"><button type="button" id="heroAddBtn">Start</button></div>
+    </div>
+    <div id="heroMain" style="display:none;">
+      <div class="hrow">
+        <div class="hring">
+          <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="dring-track"/><circle cx="60" cy="60" r="52" class="dring-fill" id="heroRingFill"/></svg>
+          <div class="hring-c"><span id="heroRingTime">&mdash;</span><span class="hring-l">REST 24H</span></div>
+        </div>
+        <div class="hinfo">
+          <div class="hname" id="heroName">&nbsp;</div>
+          <div class="hstate"><span class="hdot" id="heroDot"></span><span id="heroState">&mdash;</span></div>
+          <div class="htimer" id="heroTimer">&mdash;</div>
+          <div class="hsince" id="heroSince">&nbsp;</div>
+        </div>
+      </div>
+      <div class="hbtns">
+        <button type="button" class="hbtn rest" id="btnRest" aria-pressed="false"><span class="hb-main" id="btnRestMain">TAP TO REST</span><span class="hb-sub" id="btnRestSub"></span></button>
+        <button type="button" class="hbtn work" id="btnWork" aria-pressed="false"><span class="hb-main" id="btnWorkMain">TAP TO WORK</span><span class="hb-sub" id="btnWorkSub"></span></button>
+      </div>
+      <div class="hvoy" id="heroVoyage"></div>
+      <button type="button" class="hdecl" id="heroDecl" style="display:none;">Joining declaration outstanding — complete</button>
+      <div class="hchips">
+        <span class="hchip" id="chip24"><b>&#10003;</b>24h rest &ge;10h</span>
+        <span class="hchip" id="chip7"><b>&#10003;</b>7d rest &ge;77h</span>
+        <span class="hchip" id="chipGap"><b>&#10003;</b>Work gap &le;14h</span>
+        <a class="hdetails" href="/hours-of-rest.html">Details &rsaquo;</a>
+      </div>
+      <div class="hnote" id="heroNote"></div>
+      <button type="button" class="hend" id="btnEndVoy" style="display:none;">End voyage</button>
+      <div class="herr" id="heroErr" style="display:none;">No connection &mdash; showing last known status.</div>
+    </div>
+  </section>
+
+  <div class="dgrid">
+
+    <a class="dcard" href="#" id="weatherCard">
+      <div class="dlabel">Weather</div>
+      <div class="dicon-row" id="weatherIcon">—</div>
+      <div class="dbig" id="weatherTemp">—</div>
+      <div class="dsub" id="weatherSub">Getting location…</div>
+    </a>
+
+    <a class="dcard" href="#" id="windCard">
+      <div class="dlabel">Wind</div>
+      <div class="dicon-row" id="windArrow">—</div>
+      <div class="dbig" id="windSpeed">—</div>
+      <div class="dsub" id="windSub">Getting location…</div>
+    </a>
+
+    <a class="dcard" href="#" id="tidesCard">
+      <div class="dlabel">Tides</div>
+      <svg viewBox="0 0 200 60" class="dtide-curve"><path d="M0 40 Q 25 20 50 30 T 100 20 T 150 35 T 200 30" fill="none" stroke-width="3"/></svg>
+      <div class="dsub" id="tidesSub">Loading…</div>
+    </a>
+
+    <div class="dcard" id="locCard" role="button" tabindex="0">
+      <div class="dlabel">Location</div>
+      <div class="dplace" id="locName">Getting position…</div>
+      <div class="dcoord" id="locDdm">—</div>
+      <div class="dsub" id="locDec"></div>
+      <div class="dsub" id="locMeta">Tap to copy</div>
+    </div>
+
+    <a class="dcard" href="/track.html" id="trackCard" aria-label="Voyage map">
+      <div class="dlabel">Voyage map</div>
+      <svg viewBox="0 0 200 60" class="dtrack-curve" id="trackSvg" aria-hidden="true"></svg>
+      <div class="dbig" id="trackBig">&mdash;</div>
+      <div class="dsub" id="trackSub">Loading&hellip;</div>
+    </a>
+
+    <a class="dcard" href="/log.html" id="logCard">
+      <div class="dlabel">Log</div>
+      <div class="dbig" id="logCount">—</div>
+      <div class="dsub" id="logCountSub">entries today</div>
+      <div class="dsub dclamp" id="logLast">Loading…</div>
+    </a>
+
+  </div>
+
+  <div class="dlocation-box" id="locationBox" style="display:none;">
+    <div class="dsub" style="margin-bottom:8px;">No position fix. Enter it manually (decimal degrees, S and W negative):</div>
+    <div class="drow">
+      <input type="text" id="manualLat" inputmode="decimal" placeholder="Latitude e.g. 55.99">
+      <input type="text" id="manualLon" inputmode="decimal" placeholder="Longitude e.g. -4.30">
+      <button id="manualLocBtn">Use</button>
+    </div>
+  </div>
+
+  <div hidden><i id="horRingFill"></i><i id="horRingCenter"></i><i id="horSub"></i></div>
+  <footer class="dfooter">Crow's Nest — self-hosted</footer>
+</div>
+<div class="dmodal" id="declModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="declTitle">
+  <div class="dcard2">
+    <div class="dtitle" id="declTitle">Declaration on commencing duty</div>
+    <div class="dsub2" id="declWho"></div>
+    <div class="dsub2">Taken once, at the start of this voyage. Recorded with the time and kept in the audit trail.</div>
+
+    <div class="dq">Rest before duty</div>
+    <label class="dopt"><input type="radio" name="declRested" value="yes"><span>I was properly rested when I began duty on this ship.<em>MSN 1877 para 3.2. Time before duty began counts as available rest in the calculation (PRE_DUTY) and is shown separately from rest you log.</em></span></label>
+    <label class="dopt"><input type="radio" name="declRested" value="no"><span>No, or I am not sure.<em>Time before this voyage stays unrecorded until you log it, so the checks cannot be confirmed until then.</em></span></label>
+    <input type="text" id="declNote" class="dnote" maxlength="400" placeholder="Work or other duty before joining (hours, where) — optional" style="display:none;">
+
+    <div class="dq">Hours of work and hours of rest</div>
+    <label class="dopt"><input type="checkbox" id="declAck1"><span>I will record my hours of work and hours of rest accurately. Hours of rest are time outside hours of work and do not include short breaks. The record is endorsed by me and the master and I am entitled to a copy.<em>Hours of Work Regulations 2018, regs 2 and 12.</em></span></label>
+    <label class="dopt"><input type="checkbox" id="declAck2"><span>Work done in an emergency or call-out during hours of rest is hours of work and must be recorded. I am entitled to compensatory rest.<em>Regs 5 and 11.</em></span></label>
+
+    <div class="dq">Young persons</div>
+    <label class="dopt"><input type="checkbox" id="declU18"><span>The seafarer is under 18.<em id="declU18w" style="display:none;">The app does not yet apply the young-person rules. Check the separate regulations.</em></span></label>
+
+    <div class="dq">Declared by</div>
+    <label class="dopt"><input type="radio" name="declBy" value="seafarer" checked><span>The seafarer</span></label>
+    <label class="dopt"><input type="radio" name="declBy" value="master"><span>The master, on behalf of the seafarer</span></label>
+
+    <div class="dbtns"><button type="button" class="dcancel" id="declCancel">Cancel</button><button type="button" class="dok" id="declOk" disabled>Start voyage</button></div>
+  </div>
+</div>
+<div class="htoast" id="heroToast" style="display:none;" role="status"><span id="toastText"></span><button type="button" id="toastUndo">UNDO</button></div>
+<script src="/dashboard.js?v=7"></script>
+<script src="/hero.js?v=7"></script>
+</body>
+</html>

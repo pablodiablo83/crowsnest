@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#00154C">
+<title>Hours of rest - Crow's Nest</title>
+<link rel="icon" type="image/png" href="/assets/icon.png">
+<link rel="apple-touch-icon" href="/assets/icon.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/hor.css?v=3">
+</head>
+<body>
+<a class="skip" href="#main">Skip to hours of rest</a>
+<div class="h-wrap">
+  <header class="h-top">
+    <a class="h-back" href="/" aria-label="Back to dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Dashboard</a>
+    <div class="h-title">
+      <h1>Hours of rest</h1>
+      <button type="button" class="h-vessel" id="vesselBtn" data-act="settings" data-focus="vesselName">Add vessel name</button>
+    </div>
+    <button type="button" class="h-icon" data-act="settings" aria-label="Customise: vessel, crew and settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <nav class="h-crew" id="crewBar" aria-label="Crew member"></nav>
+
+  <main id="main" class="h-main" tabindex="-1">
+    <div id="loading" class="h-card">Loading&hellip;</div>
+  </main>
+</div>
+
+<div class="h-toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastUndo">Undo</button></div>
+<div id="sheetHost"></div>
+<div id="printRecord" aria-hidden="true"></div>
+<script src="/hor.js?v=3"></script>
+</body>
+</html>

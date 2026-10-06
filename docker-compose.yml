@@ -1,0 +1,16 @@
+services:
+  crowsnest-hor:
+    build: .
+    container_name: crowsnest-hor
+    restart: unless-stopped
+    # Bound to localhost only — exactly like the Blairquhosh dashboard
+    # container (port 8088). Caddy is what reaches this port (see
+    # caddy/crowsnest.Caddyfile) and enforces the login; the tunnel talks
+    # to Caddy, never directly to this container.
+    ports:
+      - "127.0.0.1:8090:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=8080
+      - DATA_DIR=/app/data
