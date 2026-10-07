@@ -127,7 +127,7 @@
     $('whenText').textContent = dayLabel(row.t) + ' ' + hm(row.t);
     $('whenRel').textContent = rel(row.t);
     $('dSpeed').textContent = r(row.kn);
-    $('dArrow').style.transform = 'rotate(' + ((row.dir + 180) % 360) + 'deg)';
+    spin(row.dir);
     $('dArrowPath').setAttribute('fill', c);
     $('fDir').textContent = compass(row.dir);
     $('fDeg').textContent = row.dir == null ? '' : p2(row.dir).padStart(3, '0') + '°';
@@ -137,8 +137,24 @@
     $('slider').value = String(k);
     $('slider').setAttribute('aria-valuetext', dayLabel(row.t) + ' ' + hm(row.t) + ', ' + r(row.kn) + ' knots from ' + compass(row.dir));
     Array.prototype.forEach.call(document.querySelectorAll('.w-row'), function (b) { b.setAttribute('aria-pressed', String(+b.getAttribute('data-k') === k)); });
-    if (scroll) { var b = document.querySelector('.w-row[data-k="' + k + '"]'); if (b && b.scrollIntoView) b.scrollIntoView({ block: 'nearest' }); }
+    if (scroll) followInList(k);
     if (S.cmp) renderCompare();
+  }
+  // turn the dial arrow to the new direction the short way round (350 -> 10 turns 20 degrees, not 340)
+  function spin(dir) {
+    if (dir == null) return;
+    var target = (dir + 180) % 360;   // downwind
+    if (S.rot == null) S.rot = target;
+    else S.rot += ((target - S.rot) % 360 + 540) % 360 - 180;
+    $('dArrow').style.transform = 'rotate(' + S.rot + 'deg)';
+  }
+  // keep the chosen row in view INSIDE the table when the table scrolls on its own (desktop); never scroll the page
+  function followInList(k) {
+    var list = $('list'), b = list.querySelector('.w-row[data-k="' + k + '"]');
+    if (!b || list.scrollHeight <= list.clientHeight + 2) return;
+    var top = b.offsetTop, bottom = top + b.offsetHeight;
+    if (top < list.scrollTop + 40) list.scrollTop = top - 40;
+    else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight + 8;
   }
   function renderKey() {
     var lo = 0;

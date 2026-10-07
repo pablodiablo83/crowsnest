@@ -14,7 +14,8 @@ const fake = http.createServer((q, r) => {
   const mi = MODELS.indexOf(m);
   if (m === 'meteofrance_seamless') { r.writeHead(400, { 'Content-Type': 'application/json' }); return r.end(JSON.stringify({ error: true, reason: 'No data is available for this location' })); }
   const t0 = Math.floor(Date.now() / 3600000) * 3600 - 3600 * 2, n = days * 24, t = [], kn = [], dir = [], gust = [];
-  for (let i = 0; i < n; i++) { t.push(t0 + i * 3600); kn.push(10 + 2 * mi + (i % 6)); dir.push(225); gust.push(16 + 2 * mi + (i % 6)); }
+  // icon_seamless veers 15 degrees an hour through north, to test that the dial turns the short way round
+  for (let i = 0; i < n; i++) { t.push(t0 + i * 3600); kn.push(10 + 2 * mi + (i % 6)); dir.push(m === 'icon_seamless' ? (300 + i * 15) % 360 : 225); gust.push(16 + 2 * mi + (i % 6)); }
   r.writeHead(200, { 'Content-Type': 'application/json' });
   r.end(JSON.stringify({ latitude: 55.95, longitude: -4.9, hourly: { time: t, wind_speed_10m: kn, wind_direction_10m: dir, wind_gusts_10m: gust },
     current: { time: t0 + 7200, wind_speed_10m: kn[2], wind_direction_10m: 225, wind_gusts_10m: gust[2] } }));
@@ -57,8 +58,13 @@ const fake = http.createServer((q, r) => {
   const before = await page.textContent('#whenText');
   await page.click('.w-row[data-k="10"]');
   ok(await page.textContent('#whenText') !== before && await page.getAttribute('.w-row[data-k="10"]', 'aria-pressed') === 'true', 'tapping a row moves the dial to that time');
-  await page.fill('#slider', '20'); await page.dispatchEvent('#slider', 'input');
-  ok(await page.getAttribute('.w-row[data-k="20"]', 'aria-pressed') === 'true', 'slider selects a time');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const y0 = await page.evaluate(() => window.scrollY);
+  for (const v of ['5', '20', '40']) { await page.fill('#slider', v); await page.dispatchEvent('#slider', 'input'); }
+  ok(await page.getAttribute('.w-row[data-k="40"]', 'aria-pressed') === 'true', 'slider selects a time');
+  ok(await page.evaluate(() => window.scrollY) === y0, 'sliding the time does not scroll the page');
+  await page.click('#nextH'); await page.click('#prevH');
+  ok(await page.evaluate(() => window.scrollY) === y0, '- / + do not scroll the page');
   await page.click('#nowBtn');
   ok(/now|in 1 h|1 h ago/.test(await page.textContent('#whenRel')), 'Now returns to the current hour');
   // model switch persists
@@ -69,6 +75,15 @@ const fake = http.createServer((q, r) => {
   await page.reload();
   await page.waitForFunction(() => /NOAA GFS/.test(document.getElementById('srcNote').textContent));
   ok(await page.$eval('#modelSel', s => s.value) === 'gfs_seamless', 'model choice remembered');
+  // short way round: ICON veers 15 deg/hour through north; each 1-hour step must turn +15, never -345
+  await page.selectOption('#modelSel', 'icon_seamless');
+  await page.waitForFunction(() => /DWD ICON/.test(document.getElementById('srcNote').textContent));
+  const rots = [];
+  for (let v = 0; v <= 12; v++) { await page.fill('#slider', String(v)); await page.dispatchEvent('#slider', 'input'); rots.push(await page.$eval('#dArrow', e => parseFloat(e.style.transform.slice(7)))); }
+  const steps = rots.slice(1).map((x, i) => x - rots[i]);
+  ok(steps.every(d => d === 15), 'arrow turns the short way through north (steps ' + [...new Set(steps)].join(',') + ')');
+  await page.selectOption('#modelSel', 'gfs_seamless');
+  await page.waitForFunction(() => /NOAA GFS/.test(document.getElementById('srcNote').textContent));
   // compare
   await page.click('#cmpBtn');
   await page.waitForSelector('.w-cmp');
