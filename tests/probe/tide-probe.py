@@ -1,34 +1,29 @@
-# Probe open tide data sources from CI (the dev sandbox cannot reach them).
-import json, urllib.request, datetime as dt
+# Probe 2: UK gauges in the IOC network, Millport history depth and datum, NTSLF published predictions (CI only).
+import json, urllib.request, re
 UA = {'User-Agent': 'CrowsNest/1.0 (private marine dashboard)'}
-def get(u, n=None):
+def get(u):
     try:
-        r = urllib.request.urlopen(urllib.request.Request(u, headers=UA), timeout=30)
-        b = r.read().decode('utf-8', 'replace'); return r.status, b
-    except Exception as e:
-        return getattr(e, 'code', 0), str(e)
-print('=== IOC station list: UK / Ireland / Isle of Man / Channel Is ===')
+        r = urllib.request.urlopen(urllib.request.Request(u, headers=UA), timeout=40); return r.status, r.read().decode('utf-8', 'replace')
+    except Exception as e: return getattr(e, 'code', 0), str(e)
 st, b = get('https://www.ioc-sealevelmonitoring.org/service.php?query=stationlist&showall=all')
-print('status', st, 'bytes', len(b))
-try:
-    L = json.loads(b); print('fields:', list(L[0].keys()))
-    uk = [s for s in L if str(s.get('Country','')).upper() in ('GBR','IRL','IMN','JEY','GGY') or str(s.get('countryname','')).lower().find('united kingdom')>=0]
-    for s in sorted(uk, key=lambda s: -float(s.get('Lat') or s.get('lat') or 0)):
-        print({k: s.get(k) for k in s if k.lower() in ('code','location','lat','lon','country','sensor','sampling','status','lasttime','last')})
-except Exception as e:
-    print('parse fail', e, b[:500])
-print('=== IOC data sample: Millport ===')
-now = dt.datetime.utcnow(); t0 = (now - dt.timedelta(days=2)).strftime('%Y-%m-%d'); t1 = now.strftime('%Y-%m-%d')
-for code in ['mill', 'mllp', 'millp', 'mlpt']:
-    st, b = get(f'https://www.ioc-sealevelmonitoring.org/service.php?query=data&code={code}&timestart={t0}&timestop={t1}&format=json')
-    print(code, st, len(b), b[:600].replace('\n',' '))
-print('=== NOAA: harmonic constants + official predictions (San Francisco 9414290) ===')
-st, b = get('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9414290/harcon.json?units=metric')
-print('harcon', st, b[:900])
-st, b = get('https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=9414290&product=predictions&datum=MSL&interval=h&units=metric&time_zone=gmt&format=json&begin_date=20261001&end_date=20261002&application=crowsnest')
-print('predictions', st, b[:500])
-st, b = get('https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=9414290&product=predictions&datum=MSL&interval=hilo&units=metric&time_zone=gmt&format=json&begin_date=20261001&end_date=20261002&application=crowsnest')
-print('hilo', st, b[:500])
-print('=== UK sources ===')
-for u in ['https://ntslf.org/data/uk-network-real-time', 'https://www.bodc.ac.uk/data/hosted_data_systems/sea_level/uk_tide_gauge_network/', 'https://environment.data.gov.uk/flood-monitoring/id/stations?type=TideGauge&_limit=3']:
-    st, b = get(u); print(u, st, len(b), b[:300].replace('\n', ' '))
+L = json.loads(b)
+print('country values sample:', sorted(set(str(s.get('country')) for s in L))[:200])
+uk = [s for s in L if -11 < float(s.get('Lon') or s.get('lon') or 99) < 3 and 49 < float(s.get('Lat') or s.get('lat') or 0) < 61.5]
+seen = set()
+for s in sorted(uk, key=lambda s: -float(s.get('Lat') or s.get('lat'))):
+    k = s.get('Code') or s.get('code')
+    if k in seen: continue
+    seen.add(k)
+    print(f"{k:8} {str(s.get('Location'))[:28]:28} {s.get('country')} {s.get('Lat')},{s.get('Lon')} sensor={s.get('sensor')} rate={s.get('rate')} offset={s.get('offset')} first={s.get('first')} last={str(s.get('lasttime'))[:16]} status={s.get('status')}")
+print('=== Millport full record ===')
+for s in L:
+    if (s.get('Code') or s.get('code')) == 'mill': print(s); break
+print('=== Millport history depth ===')
+for a, z in [('2025-10-01', '2025-10-03'), ('2024-10-01', '2024-10-03'), ('2020-01-01', '2020-01-03'), ('2025-09-01', '2025-10-31')]:
+    st, b = get(f'https://www.ioc-sealevelmonitoring.org/service.php?query=data&code=mill&timestart={a}&timestop={z}&format=json')
+    try: d = json.loads(b); print(a, z, st, len(d), 'points', d[0] if d else '', d[-1] if d else '', 'sensors', sorted(set(x['sensor'] for x in d)))
+    except Exception: print(a, z, st, b[:200])
+print('=== NTSLF predictions pages ===')
+for u in ['https://ntslf.org/tides/predictions?port=Millport', 'https://ntslf.org/tides/tidepred?port=Millport', 'https://ntslf.org/tgi/portinfo?port=Millport', 'https://ntslf.org/tides/predictions']:
+    st, b = get(u); t = re.sub(r'<[^>]+>', ' ', b); t = re.sub(r'\s+', ' ', t)
+    i = t.find('Millport'); print(u, st, len(b), '|', t[max(0, i - 200):i + 1500] if i >= 0 else t[:400])
