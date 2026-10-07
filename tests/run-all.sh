@@ -22,5 +22,6 @@ fresh && run api-v1 node tests/api-v1.js
 if [ "${1:-}" != "--no-browser" ]; then
   fresh && run pw-tapqueue node tests/pw-tapqueue.js "$TMP"
   fresh APP_ORIGINS=http://localhost:8092 && run pw-app node tests/pw-app.js "$TMP"
+  fresh OPEN_METEO_BASE=http://127.0.0.1:8093 && run pw-wind node tests/pw-wind.js "$TMP"
 fi
 exit $fail

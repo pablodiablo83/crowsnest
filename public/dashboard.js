@@ -15,7 +15,8 @@ const COMPASS = d => {
   const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   return dirs[Math.round(d / 22.5) % 16];
 };
-const ARROW = d => `<span style="display:inline-block;transform:rotate(${d}deg);">&#8593;</span>`;
+// points DOWNWIND (the way the wind blows), like the wind page; d is the meteorological 'from' direction
+const ARROW = d => `<span style="display:inline-block;transform:rotate(${(d + 180) % 360}deg);">&#8593;</span>`;
 const $ = id => document.getElementById(id);
 const p2 = n => String(n).padStart(2, '0');
 
@@ -35,12 +36,19 @@ async function loadWeatherAndWind(lat, lon) {
     setText('weatherIcon', WMO_ICON(d.weatherCode));
     setText('weatherTemp', `${Math.round(d.temperatureC)}&deg;C`);
     setText('weatherSub', 'Open-Meteo forecast');
-    setText('windArrow', ARROW(d.windDirectionDeg));
-    setText('windSpeed', `${Math.round(d.windSpeedKn)}kn`);
-    setText('windSub', `${COMPASS(d.windDirectionDeg)} &middot; gusts ${Math.round(d.windGustsKn)}kn`);
   } catch (e) {
     setText('weatherSub', 'Weather unavailable');
-    setText('windSub', 'Weather unavailable');
+  }
+  // wind from the model chosen on the wind page (same numbers there and here)
+  try {
+    let m = ''; try { m = localStorage.getItem('cn_windModel') || ''; } catch (e) {}
+    const w = await getJson(`/api/wind?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&days=1${m ? '&model=' + encodeURIComponent(m) : ''}`);
+    const c = w.current || { kn: w.kn[0], dir: w.dir[0], gust: w.gust[0] };
+    setText('windArrow', ARROW(c.dir));
+    setText('windSpeed', `${Math.round(c.kn)}kn`);
+    setText('windSub', `from ${COMPASS(c.dir)}` + (c.gust != null ? ` &middot; gusts ${Math.round(c.gust)}kn` : '') + `<br>${esc(w.model.label)} &middot; tap for forecast`);
+  } catch (e) {
+    setText('windSub', 'Wind unavailable &middot; tap for forecast');
   }
 }
 

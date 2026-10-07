@@ -1,0 +1,29 @@
+# Live check: every wind model on /api/wind against the real Open-Meteo (the dev sandbox cannot reach it).
+# Runs on demand and every Monday morning; the log lists which models give wind at a Clyde position.
+name: Wind models (live)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * 1'
+  push:
+    branches: [main]
+    paths: ['tests/wind-live.js', '.github/workflows/wind-models.yml']
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Start the server and query every model
+        run: |
+          mkdir -p "$RUNNER_TEMP/data"
+          (DATA_DIR="$RUNNER_TEMP/data" PORT=8091 node server.js > "$RUNNER_TEMP/server.log" 2>&1 &)
+          for i in $(seq 30); do curl -sf localhost:8091/healthz >/dev/null && break; sleep 1; done
+          node tests/wind-live.js

@@ -310,7 +310,7 @@ function crewAllowed(dev, method, p) {
   if (method === 'POST' && p === '/api/positions') return true;
   if (method !== 'GET') return false;
   return ['/api/vessel', '/api/crew', '/api/me', '/api/time', '/api/dashboard/settings', '/api/dashboard/hor-summary', '/api/settings/pre-voyage',
-    '/api/positions/latest', '/api/weather', '/api/tides', '/api/settings/tide-provider'].includes(p) || /^\/api\/track\//.test(p);
+    '/api/positions/latest', '/api/weather', '/api/wind', '/api/tides', '/api/settings/tide-provider'].includes(p) || /^\/api\/track\//.test(p);
 }
 
 app.use((req, res, next) => {
@@ -1058,6 +1058,63 @@ app.get('/api/weather', async (req, res) => {
     });
   } catch (e) {
     res.status(502).json({ error: 'weather fetch failed', detail: String(e.message || e) });
+  }
+});
+
+// ---- wind: hourly forecast from a chosen model (Open-Meteo). Forecast model output, not an official marine forecast. ----
+// Model ids are Open-Meteo's; 'seamless' ones blend a high-resolution regional run with its global parent.
+// Verified against the live API by .github/workflows/wind-models.yml (this sandbox cannot reach Open-Meteo).
+const WIND_MODELS = [
+  { id: 'ukmo_seamless', label: 'UK Met Office', detail: 'UKV 2 km over the UK and Ireland, global 10 km beyond' },
+  { id: 'ecmwf_ifs025', label: 'ECMWF IFS', detail: 'European Centre global model, 25 km' },
+  { id: 'icon_seamless', label: 'DWD ICON', detail: 'German Weather Service: ICON-D2 2 km / ICON-EU 7 km / global' },
+  { id: 'dmi_seamless', label: 'DMI HARMONIE', detail: 'Danish Met Institute, 2 km over NW Europe' },
+  { id: 'meteofrance_seamless', label: 'Météo-France', detail: 'AROME 1.3-2.5 km / ARPEGE' },
+  { id: 'gfs_seamless', label: 'NOAA GFS', detail: 'US global model, 13-25 km' },
+  { id: 'best_match', label: 'Open-Meteo best match', detail: 'Open-Meteo picks the best model for the spot' }
+];
+const WIND_DEFAULT = 'ukmo_seamless';
+const OPEN_METEO = process.env.OPEN_METEO_BASE || 'https://api.open-meteo.com';   // tests point this at a fake
+const windCache = new Map();   // key -> { at, data }; Open-Meteo updates hourly at most, so 10 minutes is plenty
+async function windFor(model, lat, lon, days) {
+  const key = [model, lat.toFixed(2), lon.toFixed(2), days].join('|');
+  const hit = windCache.get(key);
+  if (hit && Date.now() - hit.at < 10 * 60000) return hit.data;
+  const url = `${OPEN_METEO}/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}` +
+    `&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m` +
+    `&models=${model}&wind_speed_unit=kn&timeformat=unixtime&timezone=GMT&forecast_days=${days}`;
+  const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error) throw new Error(d.reason || `upstream ${r.status}`);
+  const h = d.hourly || {}, c = d.current || {};
+  const round = a => (a || []).map(v => v == null ? null : Math.round(v * 10) / 10);
+  const data = {
+    gridLat: d.latitude, gridLon: d.longitude,
+    current: c.time ? { t: c.time * 1000, kn: c.wind_speed_10m, dir: c.wind_direction_10m, gust: c.wind_gusts_10m } : null,
+    t: (h.time || []).map(x => x * 1000), kn: round(h.wind_speed_10m), dir: (h.wind_direction_10m || []).map(v => v == null ? null : Math.round(v)), gust: round(h.wind_gusts_10m)
+  };
+  if (!data.t.length || data.kn.every(v => v == null)) throw new Error('this model has no wind data for this position');
+  windCache.set(key, { at: Date.now(), data });
+  if (windCache.size > 200) windCache.delete(windCache.keys().next().value);
+  return data;
+}
+app.get('/api/wind', async (req, res) => {
+  const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return res.status(400).json({ error: 'lat and lon query params required' });
+  const days = Math.min(10, Math.max(1, parseInt(req.query.days, 10) || 7));
+  const want = String(req.query.model || WIND_DEFAULT);
+  const m = WIND_MODELS.find(x => x.id === want);
+  if (!m) return res.status(400).json({ error: 'unknown model', models: WIND_MODELS });
+  const base = { source: 'Open-Meteo', note: 'Forecast model output - not an official marine forecast', models: WIND_MODELS, model: m, lat, lon, fetchedAt: new Date().toISOString() };
+  try {
+    const out = Object.assign(base, await windFor(m.id, lat, lon, days));
+    if (req.query.compare) {   // the same hours from every other model, side by side (for the "Models" view)
+      out.compare = await Promise.all(WIND_MODELS.filter(x => x.id !== m.id).map(x =>
+        windFor(x.id, lat, lon, days).then(d => ({ model: x, t: d.t, kn: d.kn, dir: d.dir, gust: d.gust }), e => ({ model: x, error: String(e.message || e) }))));
+    }
+    res.json(out);
+  } catch (e) {
+    res.status(502).json(Object.assign(base, { error: 'wind forecast unavailable', detail: String(e.message || e) }));
   }
 });
 
