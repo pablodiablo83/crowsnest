@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#00154C">
+<title>Tides - Crow's Nest</title>
+<link rel="icon" type="image/png" href="/assets/icon.png">
+<link rel="apple-touch-icon" href="/assets/icon.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/hor.css?v=3">
+<link rel="stylesheet" href="/wave.css?v=2">
+<style>
+.t-wrap{max-width:560px;margin:0 auto;padding:14px 16px calc(60px + env(safe-area-inset-bottom))}
+@media (min-width:920px){.t-wrap{max-width:1040px}.t-cols{display:grid;grid-template-columns:420px 1fr;gap:14px;align-items:start}}
+.t-body{display:flex;flex-direction:column;gap:14px}
+.t-cols>div{display:flex;flex-direction:column;gap:14px;min-width:0}
+.t-place{color:var(--muted);font-size:14px;margin-top:2px}
+select.h-in{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,#fff 50%),linear-gradient(135deg,#fff 50%,transparent 50%);background-position:calc(100% - 22px) 22px,calc(100% - 16px) 22px;background-size:6px 6px;background-repeat:no-repeat;padding-right:40px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+select.h-in option,select.h-in optgroup{color:#00154C}
+.t-port{display:flex;flex-direction:column;gap:6px}
+.t-port label{font-size:14px;font-weight:700}
+/* now */
+.t-now{display:flex;align-items:center;gap:16px}
+.t-big{font-size:46px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.t-big small{font-size:18px;color:var(--muted);font-weight:700;margin-left:4px}
+.t-dir{font-size:15px;font-weight:900;color:var(--cyan-l)}
+.t-next{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.t-ev{border:1px solid var(--line);border-radius:14px;padding:8px 10px}
+.t-ev .k{font-size:12px;color:var(--muted);font-weight:700}
+.t-ev .v{font-size:20px;font-weight:900;font-variant-numeric:tabular-nums}
+.t-ev .s{font-size:12px;color:var(--muted)}
+.t-sn{margin-top:12px}
+.t-sn .bar{height:10px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden}
+.t-sn .bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#7FD3E6,#28A7C4)}
+.t-sn .lab{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-top:4px}
+.t-sn .lab b{color:#fff}
+/* chart */
+.t-days{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-top:8px;scrollbar-width:none}
+.t-days button{flex:none;min-height:40px;padding:0 12px;border-radius:12px;border:1px solid var(--line-2);background:var(--panel);font-weight:700;font-size:14px}
+.t-days button[aria-pressed=true]{background:var(--cyan-d);border-color:var(--cyan-l)}
+.t-chart{width:100%;height:230px;display:block;margin-top:10px;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.t-chart .grid{stroke:rgba(255,255,255,.1);stroke-width:1}
+.t-chart .ax{fill:rgba(255,255,255,.6);font-size:11px;font-weight:700}
+.t-chart .ref{stroke:rgba(255,255,255,.35);stroke-dasharray:4 4;stroke-width:1}
+.t-chart .refl{fill:rgba(255,255,255,.55);font-size:10px;font-weight:700}
+.t-chart .curve{fill:none;stroke:#7FD3E6;stroke-width:3;stroke-linejoin:round}
+.t-chart .area{fill:url(#tg)}
+.t-chart .ext{fill:#fff;font-size:11px;font-weight:900;text-anchor:middle;paint-order:stroke;stroke:#00154C;stroke-width:3px}
+.t-chart .nowl{stroke:var(--amber);stroke-width:2}
+.t-chart .sel{stroke:#fff;stroke-width:1.5;stroke-dasharray:3 3}
+.t-chart .seld{fill:#fff;stroke:#00154C;stroke-width:2}
+.t-read{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;font-variant-numeric:tabular-nums}
+.t-read b{font-size:22px}
+.t-read span{color:var(--muted);font-size:14px}
+.t-slide input{width:100%;accent-color:var(--cyan)}
+/* table */
+.t-tab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.t-tab th{font-size:12px;color:var(--muted);text-align:left;padding:6px 6px;border-bottom:1px solid var(--line)}
+.t-tab td{padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.07);font-size:16px}
+.t-tab tr.day td{background:#0B2A6B;font-weight:900;font-size:14px;padding:8px 10px}
+.t-tab .hw{font-weight:900}
+.t-tab .det{color:var(--muted);font-size:12px;display:block}
+.t-tab tr.past td{opacity:.45}
+/* secondary form */
+.t-sec li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.t-sec li b{display:block}
+.t-sec li span{color:var(--muted);font-size:13px}
+.t-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.t-grid .h-fld{margin:0}
+.t-grid label{font-size:13px}
+.t-legend{font-size:13px;color:var(--muted);margin:10px 0 6px;font-weight:700}
+.t-note{color:var(--muted);font-size:13px;margin-top:10px}
+.t-msg{color:var(--amber-l);font-size:14px;margin-top:8px}
+.t-wait{text-align:center;padding:10px 0}
+</style>
+<script src="/net.js?v=1"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the tides</a>
+<div class="t-wrap">
+  <header class="h-top">
+    <a class="h-back" href="/" aria-label="Back to dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Dashboard</a>
+    <div class="h-title">
+      <h1>Tides</h1>
+      <p class="t-place" id="place">Finding the nearest port…</p>
+    </div>
+  </header>
+  <main id="main" class="t-body" tabindex="-1">
+    <div class="t-cols">
+      <div>
+        <section class="h-card" aria-labelledby="hNow">
+          <div class="t-port"><label for="portSel" id="hNow">Port</label><select id="portSel" class="h-in"></select></div>
+          <div id="nowBox" aria-live="polite"><div class="t-wait"><div class="cn-wave lg" role="status" aria-label="Loading"></div></div></div>
+        </section>
+        <section class="h-card" aria-labelledby="hCurve">
+          <h2 id="hCurve">Tidal curve</h2>
+          <div class="t-days" id="days" role="group" aria-label="Day"></div>
+          <svg class="t-chart" id="chart" role="img" aria-labelledby="chartDesc"><desc id="chartDesc">Height of tide through the day</desc></svg>
+          <div class="t-read" aria-live="polite"><b id="readH">—</b><span id="readT"></span></div>
+          <div class="t-slide"><label for="tslider" class="h-sub" style="display:block;margin:6px 0 4px">Height of tide at a time</label><input type="range" id="tslider" min="0" max="143" step="1" value="72"></div>
+        </section>
+      </div>
+      <div>
+        <section class="h-card" aria-labelledby="hTable">
+          <div class="h-head"><div><h2 id="hTable">High and low waters</h2><p class="h-sub" id="tableSub">Next 7 days, your local time.</p></div></div>
+          <table class="t-tab" id="table"></table>
+        </section>
+        <section class="h-card" aria-labelledby="hSec">
+          <div class="h-head"><div><h2 id="hSec">Secondary ports</h2><p class="h-sub">Enter a port's differences once from your almanac (Reeds or Admiralty Tide Tables). Crow's Nest then predicts it by the Admiralty method.</p></div></div>
+          <ul class="t-sec" id="secList"></ul>
+          <div class="h-actions"><button type="button" class="h-btn ghost" id="secAdd">+ Add a secondary port</button></div>
+          <form id="secForm" hidden novalidate>
+            <div class="h-fld"><label for="sName">Port name</label><input class="h-in" id="sName" maxlength="60" autocomplete="off"></div>
+            <div class="h-fld"><label for="sStd">Standard port <span class="hint">As named in the almanac entry.</span></label><select class="h-in" id="sStd"></select></div>
+            <p class="t-legend">Time differences (from the almanac: standard port times, then the secondary port's difference, e.g. 0000 / +0010)</p>
+            <div class="t-grid">
+              <div class="h-fld"><label for="hw1t">HW at</label><input class="h-in" id="hw1t" inputmode="numeric" placeholder="0000"></div>
+              <div class="h-fld"><label for="hw1d">difference</label><input class="h-in" id="hw1d" placeholder="+0010"></div>
+              <div class="h-fld"><label for="hw2t">HW at</label><input class="h-in" id="hw2t" inputmode="numeric" placeholder="0600"></div>
+              <div class="h-fld"><label for="hw2d">difference</label><input class="h-in" id="hw2d" placeholder="-0005"></div>
+              <div class="h-fld"><label for="lw1t">LW at</label><input class="h-in" id="lw1t" inputmode="numeric" placeholder="0000"></div>
+              <div class="h-fld"><label for="lw1d">difference</label><input class="h-in" id="lw1d" placeholder="+0015"></div>
+              <div class="h-fld"><label for="lw2t">LW at</label><input class="h-in" id="lw2t" inputmode="numeric" placeholder="0600"></div>
+              <div class="h-fld"><label for="lw2d">difference</label><input class="h-in" id="lw2d" placeholder="+0005"></div>
+            </div>
+            <p class="t-legend">Heights (metres): the standard port's tabulated heights, and the secondary port's differences</p>
+            <div class="t-grid" id="lvGrid"></div>
+            <div class="h-fld"><label for="sPos">Position <span class="hint">Optional. Used to offer this port when you are near it.</span></label>
+              <div style="display:flex;gap:8px"><input class="h-in" id="sLat" placeholder="lat 55.79" inputmode="decimal"><input class="h-in" id="sLon" placeholder="lon -4.87" inputmode="decimal"><button type="button" class="h-btn ghost" id="sHere" style="flex:none">Here</button></div></div>
+            <div class="h-fld"><label for="sNotes">Notes</label><input class="h-in" id="sNotes" maxlength="300" placeholder="e.g. Reeds 2026 p.312"></div>
+            <div class="errbox" id="sErr"></div>
+            <div class="h-actions"><button type="submit" class="h-btn primary">Save port</button><button type="button" class="h-btn ghost" id="sCancel">Cancel</button><button type="button" class="h-btn ghost" id="sDel" hidden>Delete</button></div>
+          </form>
+        </section>
+        <section class="h-card" aria-labelledby="hAbout">
+          <h2 id="hAbout">About these predictions</h2>
+          <p class="t-note" id="about">Loading…</p>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="h-toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastUndo" style="display:none">Undo</button></div>
+<script src="/tide-page.js?v=1"></script>
+</body>
+</html>

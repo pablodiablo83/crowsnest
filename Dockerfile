@@ -8,9 +8,9 @@ RUN apk add --no-cache python3 make g++
 COPY package.json ./
 RUN npm install --omit=dev
 
-COPY server.js extra.js inshore-areas.js auth.js ./
+COPY server.js extra.js inshore-areas.js auth.js tides.js tide-stations.js ./
 COPY tools ./tools
-COPY engine/hor-engine.js ./engine/hor-engine.js
+COPY engine/hor-engine.js engine/tide.js ./engine/
 COPY public ./public
 
 ENV DATA_DIR=/app/data

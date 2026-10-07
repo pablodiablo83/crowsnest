@@ -21,6 +21,7 @@ run() {   # run NAME CMD...
   if [ $rc -eq 0 ]; then echo "ok   $1"; else echo "FAIL $1"; echo "$out" | grep -v '^PASS' | tail -15; fail=1; fi
 }
 run engine node engine/hor-engine.test.js
+run tide-engine node --test engine/tide.test.js
 fresh && run api-auth node tests/api-auth.js
 fresh && run api-tapqueue node tests/api-tapqueue.js
 fresh && run api-v1 node tests/api-v1.js
@@ -29,5 +30,6 @@ if [ "${1:-}" != "--no-browser" ]; then
   fresh && run pw-tapqueue node tests/pw-tapqueue.js "$TMP"
   fresh APP_ORIGINS=http://localhost:8092 && run pw-app node tests/pw-app.js "$TMP"
   fresh OPEN_METEO_BASE=http://127.0.0.1:8093 INSHORE_URL=http://127.0.0.1:8093/inshore INSHORE_MIN_AREAS=3 && run pw-wind node tests/pw-wind.js "$TMP"
+  fresh IOC_BASE=http://127.0.0.1:8094 NO_TIDE_WARMUP=1 && run pw-tides node tests/pw-tides.js "$TMP"
 fi
 exit $fail

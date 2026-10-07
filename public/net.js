@@ -10,7 +10,7 @@
   var C = window.Capacitor;
   var isApp = !!(C && (typeof C.isNativePlatform === 'function' ? C.isNativePlatform() : C.platform && C.platform !== 'web'));
   var DEFAULT_SERVER = 'https://app.crows-nest.co.uk';
-  var MIRROR = ['cn_tapq', 'cn_tapq_failed', 'cn_posq', 'cn_server', 'cn_token', 'cn_device', 'cn_fix', 'cn.crew', 'cn_bg', 'cn_windModel', 'cn_inshoreArea'];
+  var MIRROR = ['cn_tapq', 'cn_tapq_failed', 'cn_posq', 'cn_server', 'cn_token', 'cn_device', 'cn_fix', 'cn.crew', 'cn_bg', 'cn_windModel', 'cn_inshoreArea', 'cn_tidePort'];
   var CACHE = 'cn_cache:', CACHE_MAX = 400000, TIMEOUT_MS = 20000;
   function plug(name) { return isApp && ((C.Plugins && C.Plugins[name]) || (C.registerPlugin && C.registerPlugin(name))) || null; }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }

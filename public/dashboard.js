@@ -55,13 +55,23 @@ async function loadWeatherAndWind(lat, lon) {
 // ---------- Tides ----------
 async function loadTides() {
   try {
-    const d = await getJson('/api/tides');
-    if (!d.configured) { setText('tidesSub', 'Not set up yet &mdash; needs a tide data provider'); return; }
-    if (d.error) { setText('tidesSub', 'Tide data unavailable'); return; }
-    const next = (d.events || []).slice(0, 2);
-    if (!next.length) { setText('tidesSub', 'No upcoming events returned'); return; }
+    let port = ''; try { port = localStorage.getItem('cn_tidePort') || ''; } catch (e) {}
+    const d = await getJson('/api/tides' + (port ? '?port=' + encodeURIComponent(port) : ''));
+    if (d.analysing) { setText('tidesSub', `${esc(d.port || 'Nearest port')}: setting up (reading a year of gauge data)&hellip;`); setTimeout(loadTides, 15000); return; }
+    if (!d.configured || d.error) { setText('tidesSub', 'Tide data unavailable'); return; }
     const fmt = iso => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    setText('tidesSub', next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM}m`).join('<br>'));
+    const next = (d.events || []).slice(0, 2);
+    setText('tidesSub', `${esc(d.port)}${d.now ? ` &middot; ${d.now.h.toFixed(1)}m ${d.now.rising ? '&uarr;' : '&darr;'}` : ''}<br>` +
+      next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM.toFixed(1)}m`).join('<br>'));
+    // the real curve: 2 h back to 12 h ahead, with a "now" tick
+    const c = d.curve || [];
+    if (c.length > 4) {
+      const t0 = c[0][0], t1 = c[c.length - 1][0], hs = c.map(p => p[1]), lo = Math.min(...hs) - 0.2, hi = Math.max(...hs) + 0.2;
+      const X = t => (t - t0) / (t1 - t0) * 200, Y = h => 56 - (h - lo) / (hi - lo) * 52;
+      const nx = X(Date.now()).toFixed(1);
+      $('tideSvg').innerHTML = `<path d="${c.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ')}" fill="none" stroke-width="3"/>` +
+        `<line x1="${nx}" x2="${nx}" y1="2" y2="58" stroke="#F5B041" stroke-width="2"/>`;
+    }
   } catch (e) {
     setText('tidesSub', 'Tide data unavailable');
   }

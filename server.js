@@ -381,7 +381,7 @@ function crewAllowed(dev, method, p) {
   if (method === 'POST' && p === '/api/positions') return true;
   if (method !== 'GET') return false;
   return ['/api/vessel', '/api/crew', '/api/me', '/api/time', '/api/dashboard/settings', '/api/dashboard/hor-summary', '/api/settings/pre-voyage',
-    '/api/positions/latest', '/api/weather', '/api/wind', '/api/inshore', '/api/tides', '/api/settings/tide-provider'].includes(p) || /^\/api\/track\//.test(p);
+    '/api/positions/latest', '/api/weather', '/api/wind', '/api/inshore', '/api/tides'].includes(p) || /^\/api\/(track|tides)\//.test(p);
 }
 
 app.use((req, res, next) => {
@@ -1281,59 +1281,20 @@ app.get('/api/inshore', async (req, res) => {
   }
 });
 
-// ---- tides: Admiralty UK Tidal API - Discovery tier (free, UK/Ireland only) ----
-// NOTE: endpoint path and response field names below are built from the
-// published community Python client's documented usage, not a direct read
-// of Admiralty's own docs (which sit behind portal login). Verify against
-// a real response once an API key is in place — see README.
-app.put('/api/settings/tide-provider', (req, res) => {
-  const { apiKey, stationId } = req.body;
-  if (apiKey !== undefined) setSetting('ukhoApiKey', String(apiKey));
-  if (stationId !== undefined) setSetting('ukhoStationId', String(stationId));
-  res.json({ ok: true });
-});
-app.get('/api/settings/tide-provider', (req, res) => {
-  res.json({
-    hasApiKey: !!getSetting('ukhoApiKey', ''),
-    stationId: getSetting('ukhoStationId', '')
-  });
-});
-app.get('/api/tides', async (req, res) => {
-  const apiKey = getSetting('ukhoApiKey', '');
-  const stationId = getSetting('ukhoStationId', '');
-  if (!apiKey || !stationId) {
-    return res.json({
-      configured: false,
-      message: 'Tide data provider not yet set up — see README for Admiralty UK Tidal API (Discovery) setup.'
-    });
-  }
-  try {
-    const url = `https://admiraltyapi.azure-api.net/uktidalapi/api/V1/Stations/${encodeURIComponent(stationId)}/TidalEvents?duration=6`;
-    const r = await fetch(url, {
-      headers: { 'Ocp-Apim-Subscription-Key': apiKey },
-      signal: AbortSignal.timeout(10000)
-    });
-    if (!r.ok) throw new Error(`upstream ${r.status}`);
-    const raw = await r.json();
-    const events = (Array.isArray(raw) ? raw : []).map(e => ({
-      type: e.EventType === 'HighWater' ? 'high' : e.EventType === 'LowWater' ? 'low' : String(e.EventType || '').toLowerCase(),
-      time: e.DateTime,
-      heightM: e.Height
-    }));
-    res.json({
-      configured: true,
-      source: 'Admiralty UK Tidal API (Discovery) — UK/Ireland stations only',
-      stationId,
-      events
-    });
-  } catch (e) {
-    res.status(502).json({ configured: true, error: 'tide fetch failed', detail: String(e.message || e) });
-  }
-});
+// ---- tides (tides.js: standard ports from open gauge data + the tide engine; secondary ports by the Admiralty method)
+require('./tides.js')(app, { db, auditRaw, getSetting });
 
 require('./extra')(app, db);
 
 app.get('/healthz', (req, res) => res.send('ok'));
 
 const PORT = process.env.PORT || 8080;
+// last: unexpected errors answer with a short message, never a stack trace
+app.use((err, req, res, next) => {   // eslint-disable-line no-unused-vars
+  console.error(new Date().toISOString(), req.method, req.path, err && err.stack || err);
+  if (res.headersSent) return;
+  if (err && err.type === 'entity.parse.failed') return res.status(400).json({ error: 'request body is not valid JSON' });
+  res.status(500).json({ error: 'something went wrong on the server' });
+});
+
 app.listen(PORT, () => console.log(`Crow's Nest — Hours of Rest listening on :${PORT}`));

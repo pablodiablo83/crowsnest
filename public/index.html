@@ -80,9 +80,9 @@
       <div class="dsub" id="windSub">Getting location…</div>
     </a>
 
-    <a class="dcard" href="#" id="tidesCard">
+    <a class="dcard" href="/tides.html" id="tidesCard" aria-label="Tides">
       <div class="dlabel">Tides</div>
-      <svg viewBox="0 0 200 60" class="dtide-curve"><path d="M0 40 Q 25 20 50 30 T 100 20 T 150 35 T 200 30" fill="none" stroke-width="3"/></svg>
+      <svg viewBox="0 0 200 60" class="dtide-curve" id="tideSvg" aria-hidden="true"><path d="M0 40 Q 25 20 50 30 T 100 20 T 150 35 T 200 30" fill="none" stroke-width="3"/></svg>
       <div class="dsub" id="tidesSub">Loading…</div>
     </a>
 
@@ -148,7 +148,7 @@
   </div>
 </div>
 <div class="htoast" id="heroToast" style="display:none;" role="status"><span id="toastText"></span><button type="button" id="toastUndo">UNDO</button></div>
-<script src="/dashboard.js?v=8"></script>
+<script src="/dashboard.js?v=9"></script>
 <script src="/outbox.js?v=1"></script>
 <script src="/hero.js?v=9"></script>
 <script src="/native.js?v=1"></script>
