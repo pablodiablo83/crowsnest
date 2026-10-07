@@ -66,8 +66,35 @@ const fake = http.createServer((q, r) => {
   // a link with settings opens the same pack (how the app hands printing to Safari)
   await page.goto(B + '/passage.html?p=porp&inc=t&days=1');
   await page.waitForFunction(() => /Ready/.test(document.getElementById('status').textContent), null, { timeout: 60000 });
-  const d2 = await page.textContent('#doc');
-  ok(/Tides: Portpatrick/.test(d2) && !/Wind:/.test(d2) && !/inshore waters forecast/i.test(d2) && await page.$$eval('#doc .day', d => d.length) === 1, 'URL settings restored (Portpatrick, tides only, 1 day)');
+  const h2 = (await page.$$eval('#doc .sec h2', h => h.map(x => x.textContent))).join(' | ');
+  ok(h2 === 'Tides: Portpatrick' && await page.$$eval('#doc .day', d => d.length) === 1, 'URL settings restored (Portpatrick, tides only, 1 day): ' + h2);
+  // branding: letterhead, a brand line atop each later section, the copyright notice, the PDF's name
+  ok(await page.$('#doc .cn-letterhead svg') && /Crow’s Nest/.test(await page.textContent('#doc .cn-letterhead')), 'passage pack: Crow’s Nest letterhead with the mark');
+  const yr = new Date().getFullYear();
+  ok((await page.textContent('#doc .cn-notice')).includes('© ' + yr + ' Crow’s Nest. All rights reserved.') && /Crown copyright, Met Office/.test(await page.textContent('#doc .cn-notice')), 'passage pack: copyright notice + third-party credits');
+  ok(/^Crow’s Nest – Passage pack/.test(await page.title()), 'PDF named after Crow’s Nest (' + await page.title() + ')');
+  await page.goto(B + '/passage.html?p=mill,porp&inc=tw&days=1');
+  await page.waitForFunction(() => /Ready/.test(document.getElementById('status').textContent), null, { timeout: 60000 });
+  ok(await page.$$eval('#doc .sec .cn-run', r => r.length) === 2, 'brand line atop each section after the first');
+  // downloads: CSV ends with the notice, JSON and GPX carry it
+  const J = { 'Content-Type': 'application/json' };
+  const c = await (await fetch(B + '/api/crew', { method: 'POST', headers: J, body: JSON.stringify({ name: 'Brand Test' }) })).json();
+  const q = await (await fetch(B + '/api/crew/' + c.id + '/quicklog', { method: 'POST', headers: J, body: JSON.stringify({ type: 'work', tapId: 'b1', declaration: { rested: 'yes', ackRecords: true, ackEmergency: true, under18: false, declaredBy: 'seafarer' } }) })).json();
+  await fetch(B + '/api/positions', { method: 'POST', headers: J, body: JSON.stringify({ lat: 55.75, lon: -4.9, source: 'test' }) });
+  const csv = await (await fetch(B + '/api/export.csv')).text(), last = csv.trim().split(/\r\n/).pop();
+  ok(/^"vessel",/.test(csv) && last.includes('© ' + yr + ' Crow’s Nest. All rights reserved.'), 'hours of rest CSV: header first, notice last');
+  const js = await (await fetch(B + '/api/export.json')).json();
+  ok(js.generator === 'Crow’s Nest' && js.copyright.startsWith('© ' + yr + ' Crow’s Nest'), 'JSON export carries the notice');
+  const gpx = await (await fetch(B + '/api/voyages/' + q.voyageId + '/track.gpx')).text();
+  ok(/<copyright author="Crow’s Nest"><year>\d{4}<\/year><\/copyright>/.test(gpx) && /<desc>© \d{4} Crow’s Nest/.test(gpx), 'GPX metadata copyright');
+  const tcsv = await (await fetch(B + '/api/voyages/' + q.voyageId + '/track.csv')).text();
+  ok(/^"time_utc"/.test(tcsv) && /All rights reserved/.test(tcsv.trim().split(/\r\n/).pop()), 'track CSV: notice last');
+  // printed hours of rest record and voyage map
+  await page.goto(B + '/hours-of-rest.html');
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => { const b = [...document.querySelectorAll('button,[data-act]')].find(x => (x.dataset && x.dataset.act === 'print') || /^print/i.test(x.textContent.trim())); if (b) b.click(); });
+  await page.waitForFunction(() => window.__printed > 1, null, { timeout: 10000 }).catch(() => {});
+  ok(await page.$('#printRecord .cn-letterhead') && /All rights reserved/.test(await page.textContent('#printRecord')), 'hours of rest record: letterhead and notice');
   ok(errs.length === 0, 'no page errors ' + errs.join('; '));
   await br.close(); fake.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASS');

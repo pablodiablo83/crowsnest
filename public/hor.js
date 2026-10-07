@@ -790,7 +790,8 @@
     var br = eps.filter(function (x) { return x.v === 'breach'; }), nc = eps.filter(function (x) { return x.v !== 'breach'; });
     var decl = v && v.declaration;
     var ves = S.vessel;
-    var h = '<h1>Record of hours of rest</h1><div class="meta">' +
+    var B = window.CNBrand;
+    var h = B.letterhead('Record of hours of rest') + '<h1>Record of hours of rest</h1><div class="meta">' +
       '<div><b>Vessel:</b> ' + esc(ves.vessel || '—') + '</div><div><b>Flag:</b> ' + esc(ves.flag || '—') + '</div>' +
       '<div><b>Official number / IMO:</b> ' + esc(ves.officialNumber || '—') + '</div><div><b>Seafarer:</b> ' + esc(c.name) + '</div>' +
       '<div><b>Rank:</b> ' + esc(c.role || '—') + '</div><div><b>Period:</b> ' + dayName(from) + ' to ' + dayName(to) + '</div></div>' +
@@ -802,8 +803,11 @@
       '<p class="small">Limits applied: at least 10 hours of rest in any 24 hours (no more than two periods, one at least 6 hours), at least 77 hours in any 7 days, and no more than 14 hours between rest periods. Rests under 60 minutes do not count towards the split or the 14-hour gap. Time before the voyage counts as assumed available rest (Hours of Work Regulations 2018; MSN 1877).</p>' +
       '<p class="small">Joining declaration: ' + (decl ? declSummary(decl).replace(/&amp;/g, '&') : 'not taken.') + '</p>' +
       '<div class="sig"><div>Seafarer (endorsed)<br>Name and date</div><div>Master or authorised person (endorsed)<br>Name and date</div></div>' +
-      '<p class="small">Printed ' + dt(now) + ' from Crow’s Nest. A copy of the endorsed record is given to the seafarer; keep records for at least one year.</p>';
+      '<p class="small">Printed ' + dt(now) + ' from Crow’s Nest. A copy of the endorsed record is given to the seafarer; keep records for at least one year.</p>' +
+      B.footer('The record entries are the vessel’s and the seafarer’s own data.', now);
     var host = $('#printRecord'); host.innerHTML = h;
+    var was = document.title; document.title = B.docTitle('Hours of rest ' + c.name + ' ' + dayName(from) + ' to ' + dayName(to));
+    window.addEventListener('afterprint', function back() { document.title = was; window.removeEventListener('afterprint', back); });
     setTimeout(function () { window.print(); }, 50);
   }
 

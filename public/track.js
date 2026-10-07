@@ -334,7 +334,7 @@
     $('#statsNote').textContent = note;
     var ves = d.vessel, who = [v.crewName, v.crewRole].filter(Boolean).join(', ');
     $('#vesselLine').textContent = [ves.vessel, who].filter(Boolean).join(' · ') || ' ';
-    $('#printHead').innerHTML = '<h1>Voyage track' + (ves.vessel ? ' – ' + esc(ves.vessel) : '') + '</h1><p>' + [ves.officialNumber ? 'Official number ' + esc(ves.officialNumber) : '', ves.flag ? esc(ves.flag) : '', who ? esc(who) : ''].filter(Boolean).join(' · ') + '</p><p>' + esc(dt(v.start)) + ' to ' + (open ? 'now' : esc(dt(v.end))) + ' · printed ' + esc(dt(new Date().toISOString())) + '</p>';
+    $('#printHead').innerHTML = window.CNBrand.letterhead('Voyage track') + '<h1>Voyage track' + (ves.vessel ? ' – ' + esc(ves.vessel) : '') + '</h1><p>' + [ves.officialNumber ? 'Official number ' + esc(ves.officialNumber) : '', ves.flag ? esc(ves.flag) : '', who ? esc(who) : ''].filter(Boolean).join(' · ') + '</p><p>' + esc(dt(v.start)) + ' to ' + (open ? 'now' : esc(dt(v.end))) + ' · printed ' + esc(dt(new Date().toISOString())) + '</p>';
   }
   function renderFixes() {
     var d = S.data, pts = d.points.slice().reverse(), shown = pts.slice(0, 120);
@@ -396,7 +396,13 @@
     try { await api('/api/track/settings', { method: 'PUT', headers: J, body: JSON.stringify({ intervalMin: n }) }); toast(n ? 'Recording every ' + n + ' minutes while the app is open' : 'Timed recording is off'); }
     catch (x) { toast('Not saved. Check the connection.'); }
   });
-  $('#printBtn').addEventListener('click', function () { map.resize(); setTimeout(function () { window.print(); }, 200); });
+  $('#printBtn').addEventListener('click', function () {
+    var B = window.CNBrand, was = document.title;
+    $('#printFoot').innerHTML = B.footer('Map tiles and data © their providers as credited on the map.');
+    document.title = B.docTitle('Voyage track');
+    window.addEventListener('afterprint', function back() { document.title = was; window.removeEventListener('afterprint', back); });
+    map.resize(); setTimeout(function () { window.print(); }, 200);
+  });
   $('#logBtn').addEventListener('click', async function () {
     var b = $('#logBtn'); b.disabled = true; say('Getting a position…');
     try {

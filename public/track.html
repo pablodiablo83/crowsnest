@@ -73,7 +73,7 @@ select.h-in option{color:#00154C}
 .t-fix .m span{color:var(--muted);font-size:13px}
 .t-fix.off .m b{text-decoration:line-through;text-decoration-color:var(--coral)}
 .t-fix button{min-height:44px;padding:0 12px;border-radius:12px;border:1px solid var(--line-2);background:transparent;color:var(--cyan-l);font-weight:700;flex:none}
-#printHead{display:none}
+#printHead,#printFoot{display:none}
 .t-status{min-height:22px;font-size:14px;color:var(--muted);margin-top:10px}
 .t-status.err{color:var(--coral)}
 
@@ -83,6 +83,7 @@ select.h-in option{color:#00154C}
   .skip,.h-top,.t-pick,.tm-ctrl,.tm-msg,#actionsCard,#fixesCard,#recCard,.h-toast,.t-picked,.t-keys.screen{display:none!important}
   .t-wrap{max-width:none;padding:0}
   #printHead{display:block;margin-bottom:8pt;color:#000}
+  #printFoot{display:block}
   #printHead h1{font-size:18pt;margin:0}
   #printHead p{font-size:10pt;margin:2pt 0 0}
   .h-card{background:#fff!important;border:1px solid #444!important;color:#000!important;break-inside:avoid}
@@ -154,6 +155,8 @@ select.h-in option{color:#00154C}
   </main>
 </div>
 <div class="h-toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastUndo">Undo</button></div>
-<script src="/track.js?v=1"></script>
+<div id="printFoot"></div>
+<script src="/brand.js?v=1"></script>
+<script src="/track.js?v=2"></script>
 </body>
 </html>

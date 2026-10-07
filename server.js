@@ -7,6 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const horEngine = require('./engine/hor-engine.js');
 
+const BRAND = require('./public/brand.js');   // name + copyright line on every export
+const csvNotice = () => `"${BRAND.notice()} Exported from ${BRAND.NAME} ${new Date().toISOString()}. The data is the vessel's own."`;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new Database(path.join(DATA_DIR, 'crowsnest.db'));
@@ -859,7 +861,7 @@ app.get('/api/export.json', (req, res) => {
   const auditTrail = db.prepare('SELECT * FROM entry_audit ORDER BY seq ASC').all();
   res.setHeader('Content-Disposition', 'attachment; filename="crowsnest-hours-of-rest.json"');
   const voyages = db.prepare('SELECT * FROM voyages ORDER BY start ASC').all().map(v => ({ ...v, declaration: parseDecl(v) }));
-  res.json({ exportedAt: new Date().toISOString(), vessel, crew, voyages, entries, auditTrail });
+  res.json({ generator: BRAND.NAME, copyright: BRAND.notice() + ' Export format; the data is the vessel\'s own.', exportedAt: new Date().toISOString(), vessel, crew, voyages, entries, auditTrail });
 });
 app.get('/api/export.csv', (req, res) => {
   const vessel = getSetting('vessel', '');
@@ -873,7 +875,7 @@ app.get('/api/export.csv', (req, res) => {
     const dur = e.end ? Math.round((new Date(e.end) - new Date(e.start)) / 60000) : '';
     return [vessel, vv.officialNumber, vv.flag, crewById[e.crew_id] || e.crew_id, roleById[e.crew_id] || '', e.type, e.start, e.end || '', dur, (e.note || '').replace(/[\r\n,]+/g, ' ')];
   });
-  const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n') + '\r\n' + csvNotice();
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="crowsnest-hours-of-rest.csv"');
   res.send(csv);
@@ -1081,7 +1083,8 @@ app.get('/api/voyages/:id/track.gpx', (req, res) => {
   const name = (ves.vessel ? ves.vessel + ' ' : '') + 'voyage ' + v.start.slice(0, 10) + (v.end ? ' to ' + v.end.slice(0, 10) : '');
   const wpt = (p, n) => `  <wpt lat="${p.lat}" lon="${p.lon}"><time>${p.ts}</time><name>${xmlEsc(n)}</name></wpt>\n`;
   let x = '<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Crow\'s Nest" xmlns="http://www.topografix.com/GPX/1/1">\n' +
-    `  <metadata><name>${xmlEsc(name)}</name><time>${new Date().toISOString()}</time></metadata>\n`;
+    `  <metadata><name>${xmlEsc(name)}</name><desc>${xmlEsc(BRAND.notice() + ' Exported from ' + BRAND.NAME + '.')}</desc>` +
+    `<copyright author="${xmlEsc(BRAND.HOLDER)}"><year>${BRAND.year()}</year></copyright><time>${new Date().toISOString()}</time></metadata>\n`;
   if (u.length) { x += wpt(u[0], 'Start'); if (u.length > 1) x += wpt(u[u.length - 1], v.end ? 'End' : 'Latest'); }
   x += `  <trk><name>${xmlEsc(name)}</name>\n`;
   let open = false, prev = null;
@@ -1101,7 +1104,7 @@ app.get('/api/voyages/:id/track.csv', (req, res) => {
   const rows = trackOf(v).points.map(p => [p.ts, p.lat, p.lon, p.acc == null ? '' : Math.round(p.acc), p.sog == null ? '' : p.sog, p.cog == null ? '' : p.cog, p.source, p.used ? 'yes' : 'no ' + p.why]);
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="crowsnest-track-${v.start.slice(0, 10)}.csv"`);
-  res.send([['time_utc', 'lat', 'lon', 'accuracy_m', 'sog_kn', 'cog_deg', 'source', 'used'], ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n'));
+  res.send([['time_utc', 'lat', 'lon', 'accuracy_m', 'sog_kn', 'cog_deg', 'source', 'used'], ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n') + '\r\n' + csvNotice());
 });
 
 // ---- weather & wind (Open-Meteo — free, no API key, forecast model not an official marine forecast) ----

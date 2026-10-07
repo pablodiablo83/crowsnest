@@ -101,21 +101,29 @@
     $('status').textContent = 'Preparing…';
     var vessel = ''; try { vessel = ((await api('/api/vessel')).d || {}).vessel || ''; } catch (e) {}
     var parts = [], now = Date.now();
-    parts.push('<header><h1>' + esc(vessel ? vessel + ' · ' : '') + 'Passage pack</h1><p class="meta">' + esc(dayShort(o.start)) + (o.days > 1 ? ' to ' + esc(dayShort(addDays(end, -1))) : '') +
-      ' · times ' + esc(tzName(o.start)) + (tzName(o.start) !== tzName(end - 1) ? ' / ' + esc(tzName(end - 1)) : '') + ' · prepared ' + esc(hm(now) + ' ' + dayShort(now)) + ' by Crow’s Nest</p></header>');
+    var dates = dayShort(o.start) + (o.days > 1 ? ' to ' + dayShort(addDays(end, -1)) : '');
+    var B = window.CNBrand;
+    document.title = B.docTitle('Passage pack ' + dates);
+    parts.push('<header>' + B.letterhead('Passage pack' + (vessel ? '<br>' + esc(vessel) : '')) + '<p class="meta">' + esc(dates) +
+      ' · times ' + esc(tzName(o.start)) + (tzName(o.start) !== tzName(end - 1) ? ' / ' + esc(tzName(end - 1)) : '') + ' · prepared ' + esc(hm(now) + ' ' + dayShort(now)) + '</p></header>');
+    // each later section starts a new page: repeat a short brand line at its top
+    var run = '<div class="cn-run">' + esc(B.NAME) + ' · Passage pack' + (vessel ? ' · ' + esc(vessel) : '') + ' · ' + esc(dates) + '</div>';
+    var push = function (html) { parts.push(parts.length > 1 ? html.replace(/^(<section[^>]*>)/, '$1' + run) : html); };
     var first = true;
     if (o.tides) {
       for (var i = 0; i < o.ports.length; i++) {
         $('status').textContent = 'Tides: ' + portName(o.ports[i]) + '…';
-        parts.push(await tideSection(o.ports[i], o, end, first)); first = false;
+        push(await tideSection(o.ports[i], o, end, first)); first = false;
         if (my !== gen) return;
       }
     }
-    if (o.wind) { $('status').textContent = 'Wind…'; parts.push(await windSection(o, end, first)); first = false; if (my !== gen) return; }
-    if (o.inshore) { $('status').textContent = 'Inshore forecast…'; parts.push(await inshoreSection(o, first)); first = false; if (my !== gen) return; }
+    if (o.wind) { $('status').textContent = 'Wind…'; push(await windSection(o, end, first)); first = false; if (my !== gen) return; }
+    if (o.inshore) { $('status').textContent = 'Inshore forecast…'; push(await inshoreSection(o, first)); first = false; if (my !== gen) return; }
     if (!o.tides && !o.wind && !o.inshore) parts.push('<p class="msg">Choose at least one section.</p>');
     parts.push('<p class="note"><b>Planning aid, not an official publication.</b> Tides are astronomical predictions from tide-gauge records: wind and pressure can change heights by 0.3 m or more and shift times. ' +
       'Wind is computer model output. Check the Admiralty Tide Tables or your almanac, and the latest Met Office forecasts (VHF, Navtex), before and during the passage.</p>');
+    parts.push(B.footer('Third-party material remains its owners’ copyright: inshore waters forecast © Crown copyright, Met Office; wind data from Open-Meteo.com (CC BY 4.0) and the national weather services whose models it serves; ' +
+      'tide-gauge data from the UK National Tide Gauge Network via the IOC Sea Level Station Monitoring Facility; secondary port differences from your own almanac, © its publisher.', now));
     if (my !== gen) return;
     $('doc').innerHTML = parts.join('');
     $('status').textContent = 'Ready. This is what will print.'; ready = true;
