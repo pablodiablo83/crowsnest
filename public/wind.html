@@ -81,6 +81,21 @@ select.h-in option{color:#00154C}
 .w-key span{font-size:12px;font-weight:900;color:#00154C;border-radius:8px;padding:2px 7px}
 .w-note{color:var(--muted);font-size:13px;margin-top:10px}
 .w-msg{color:var(--amber-l);font-size:14px;margin-top:8px}
+/* Met Office inshore waters */
+.in-area{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.in-area label{font-size:14px;font-weight:700}
+.in-warn{margin-top:12px;border-radius:14px;padding:10px 12px;background:rgba(245,176,65,.16);border:1px solid var(--amber);color:var(--amber-l);font-weight:900;display:flex;gap:8px;align-items:center}
+.in-warn svg{flex:none}
+.in-name{margin-top:12px;font-size:16px;font-weight:900}
+.in-ok{margin-top:12px;color:var(--ok);font-weight:700;font-size:14px}
+.in-block{margin-top:14px}
+.in-block h3{font-size:15px;font-weight:900;margin-bottom:6px}
+.in-dl{display:grid;grid-template-columns:86px 1fr;gap:6px 10px;margin:0}
+.in-dl dt{color:var(--muted);font-size:13px;font-weight:700;padding-top:2px}
+.in-dl dd{margin:0;font-size:16px;line-height:1.35}
+.in-dl dd.wind{font-weight:900}
+.in-meta{color:var(--muted);font-size:13px;margin-top:6px}
+.in-old{color:var(--amber-l);font-size:13px;margin-top:6px;font-weight:700}
 </style>
 <script src="/net.js?v=1"></script>
 </head>
@@ -140,6 +155,18 @@ select.h-in option{color:#00154C}
           <div class="h-actions" style="margin-top:10px"><button type="button" class="h-btn ghost" id="cmpBtn">Compare all models at this time</button></div>
           <div id="cmpOut"></div>
         </section>
+
+        <section class="h-card" aria-labelledby="hInshore" id="inshoreCard">
+          <div class="h-head"><div><h2 id="hInshore">Met Office inshore waters</h2><p class="h-sub" id="inIssued">Loading the official forecast…</p></div></div>
+          <div class="in-area">
+            <label for="areaSel">Sea area</label>
+            <select id="areaSel" class="h-in"></select>
+          </div>
+          <div id="inBody" aria-live="polite"></div>
+          <details class="h-more" id="inSitWrap" hidden><summary>General situation</summary><div id="inSit"></div></details>
+          <p class="w-note" id="inSrc">© Crown copyright, Met Office. Official forecast for waters up to 12 miles offshore, issued four times a day.
+            <a id="inLink" href="https://weather.metoffice.gov.uk/specialist-forecasts/coast-and-sea/inshore-waters-forecast" target="_blank" rel="noopener">Open on the Met Office site</a></p>
+        </section>
       </div>
 
       <div>
@@ -149,12 +176,12 @@ select.h-in option{color:#00154C}
           <div class="w-list" id="list" role="list"></div>
           <div class="w-key" id="key" aria-label="Colour key, knots"></div>
           <p class="w-msg" id="msg" role="status" hidden></p>
-          <p class="w-note" id="srcNote">Source: Open-Meteo. Computer model forecasts, not an official marine forecast: check the Met Office inshore waters forecast and shipping forecast before sailing.</p>
+          <p class="w-note" id="srcNote">Source: Open-Meteo. Computer model forecasts, not an official marine forecast: read them with the Met Office inshore waters forecast on this page.</p>
         </section>
       </div>
     </div>
   </main>
 </div>
-<script src="/wind.js?v=3"></script>
+<script src="/wind.js?v=5"></script>
 </body>
 </html>

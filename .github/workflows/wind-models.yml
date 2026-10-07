@@ -1,13 +1,14 @@
-# Live check: every wind model on /api/wind against the real Open-Meteo (the dev sandbox cannot reach it).
+# Live check: every wind model on /api/wind against the real Open-Meteo, and the Met Office inshore waters parser
+# against the real page (the dev sandbox can reach neither).
 # Runs on demand and every Monday morning; the log lists which models give wind at a Clyde position.
-name: Wind models (live)
+name: Wind and inshore forecasts (live)
 on:
   workflow_dispatch:
   schedule:
     - cron: '17 6 * * 1'
   push:
     branches: [main]
-    paths: ['tests/wind-live.js', '.github/workflows/wind-models.yml']
+    paths: ['tests/wind-live.js', 'tests/inshore-live.js', 'inshore-areas.js', '.github/workflows/wind-models.yml']
 jobs:
   live:
     runs-on: ubuntu-latest
@@ -27,3 +28,4 @@ jobs:
           (DATA_DIR="$RUNNER_TEMP/data" PORT=8091 node server.js > "$RUNNER_TEMP/server.log" 2>&1 &)
           for i in $(seq 30); do curl -sf localhost:8091/healthz >/dev/null && break; sleep 1; done
           node tests/wind-live.js
+          node tests/inshore-live.js

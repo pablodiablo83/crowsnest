@@ -1,14 +1,22 @@
 // Wind page + /api/wind, against a FAKE Open-Meteo (the sandbox cannot reach the real one; CI checks the real one separately).
-// Starts the fake on 8093 itself. Needs a fresh server on 8091 started with OPEN_METEO_BASE=http://127.0.0.1:8093
+// Also the Met Office inshore waters card, against tests/fixtures/inshore.html (real markup) served by the same fake.
+// Starts the fake on 8093 itself. Needs a fresh server on 8091 started with
+//   OPEN_METEO_BASE=http://127.0.0.1:8093 INSHORE_URL=http://127.0.0.1:8093/inshore INSHORE_MIN_AREAS=3
 // NODE_PATH=$(npm root -g):$PWD/node_modules node tests/pw-wind.js [screenshot dir]
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs');
 const B = process.env.BASE || 'http://localhost:8091', SP = process.argv[2] || '.';
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const MODELS = ['ukmo_seamless', 'ecmwf_ifs025', 'icon_seamless', 'dmi_seamless', 'meteofrance_seamless', 'gfs_seamless', 'best_match'];
-let hits = 0;
+let hits = 0, inHits = 0, inFail = false;
+const FIXTURE = fs.readFileSync(require('path').join(__dirname, 'fixtures', 'inshore.html'), 'utf8');
 // fake Open-Meteo: speed = 10 + 2*modelIndex (+ hour wobble), direction 225 (from SW); meteofrance has no data here
 const fake = http.createServer((q, r) => {
+  if (q.url.startsWith('/inshore')) {
+    inHits++;
+    if (inFail) { r.writeHead(503); return r.end('down'); }
+    r.writeHead(200, { 'Content-Type': 'text/html' }); return r.end(FIXTURE);
+  }
   hits++;
   const u = new URL(q.url, 'http://x'), m = u.searchParams.get('models'), days = +u.searchParams.get('forecast_days') || 7;
   const mi = MODELS.indexOf(m);
@@ -22,6 +30,28 @@ const fake = http.createServer((q, r) => {
 }).listen(8093);
 
 (async () => {
+  // --- inshore: Met Office unreachable and nothing cached yet -> 502, names only, never a fake "no warning"
+  inFail = true;
+  let ri = await fetch(B + '/api/inshore?lat=55.85&lon=-4.95');
+  let di = await ri.json();
+  ok(ri.status === 502 && di.nearest.n === 14 && di.areas.length === 19 && di.areas.every(a => !a.blocks.length), 'inshore unreachable: 502, area names and nearest area still given');
+  inFail = false;
+  ri = await fetch(B + '/api/inshore?lat=55.85&lon=-4.95'); di = await ri.json();
+  ok(ri.status === 200 && di.nearest && di.nearest.n === 14, 'off Cumbrae -> area 14 (Firth of Clyde)');
+  ok(/^06:00 \(UTC\) on Wed 7 Oct 2026$/.test(di.issued) && /low pressure/.test(di.situation) && /to 06:00 \(UTC\) on Thu 8 Oct/.test(di.period), 'issue time, period and general situation parsed');
+  const a14 = di.areas.find(a => a.key === '14');
+  ok(a14 && a14.warning && a14.blocks.length === 2 && a14.blocks[0].items[0][0] === 'Wind' && /Westerly or northwesterly 4 to 6/.test(a14.blocks[0].items[0][1]), 'area 14: warning, forecast + outlook, Wind/Sea state/Weather/Visibility');
+  ok(a14.blocks[1].title === 'Outlook for the following 24 hours' && a14.blocks[0].items.length === 4, 'block titles and 4 items');
+  const sh = di.areas.find(a => a.key === '18'), sh60 = di.areas.find(a => a.key === '18b');
+  ok(sh && !sh.warning && sh.blocks.length === 1, 'Shetland Isles: no warning, forecast only');
+  ok(sh60 && /shallow area of low pressure/.test(sh60.situation) && sh60.notes.some(t => /^Valid /.test(t)), 'Shetland 60 nm: own general situation and validity');
+  ok(di.copyright === '© Crown copyright, Met Office', 'Crown copyright attribution given');
+  const ih = inHits; await fetch(B + '/api/inshore'); ok(inHits === ih, 'inshore cached (Met Office not hit again)');
+  ok((await (await fetch(B + '/api/inshore?lat=49.45&lon=-2.50')).json()).nearest.n === 19, 'Guernsey -> Channel Islands');
+  ok((await (await fetch(B + '/api/inshore?lat=50&lon=-20')).json()).nearest === null, 'mid-Atlantic -> no inshore area');
+  ok((await (await fetch(B + '/api/inshore?lat=56.62&lon=-6.06')).json()).nearest.n === 15, 'Tobermory -> Mull of Kintyre to Ardnamurchan');
+  ok((await (await fetch(B + '/api/inshore?lat=57.9&lon=-5.16')).json()).nearest.n === 16, 'Ullapool -> The Minch');
+
   // --- API
   let r = await (await fetch(B + '/api/wind?lat=55.95&lon=-4.9')).json();
   ok(r.model.id === 'ukmo_seamless' && r.t.length === 168 && r.kn[0] === 10, 'default model UK Met Office, 7 days hourly');
@@ -91,6 +121,18 @@ const fake = http.createServer((q, r) => {
   ok(cmpRows === 7 && /range \d+–\d+ kn/.test(await page.textContent('#cmpOut')), 'compare table: 7 models and the spread');
   ok(/not available here/.test(await page.textContent('#cmpOut')), 'model without data shown as not available');
   await page.screenshot({ path: SP + '/wind-compare.png', fullPage: true });
+  // Met Office inshore card
+  await page.waitForFunction(() => /Strong wind warning/.test(document.getElementById('inBody').textContent));
+  ok(/nearest is 14\./.test(await page.$eval('#areaSel', s => s.options[s.selectedIndex].text)), 'inshore area defaults to the nearest (14)');
+  ok(/Westerly or northwesterly 4 to 6/.test(await page.textContent('#inBody')) && /Outlook for the following 24 hours/.test(await page.textContent('#inBody')), 'inshore forecast and outlook shown');
+  ok(/Issued .*07:00/.test(await page.textContent('#inIssued')) || /Issued/.test(await page.textContent('#inIssued')), 'issue time shown');
+  await page.screenshot({ path: SP + '/inshore.png', fullPage: false, clip: await page.$eval('#inshoreCard', e => { const r = e.getBoundingClientRect(); return { x: 0, y: r.top + window.scrollY, width: 390, height: Math.min(r.height, 1400) }; }) }).catch(() => {});
+  await page.selectOption('#areaSel', '18');
+  ok(/No strong wind warning/.test(await page.textContent('#inBody')), 'other area: Shetland, no warning');
+  await page.reload();
+  await page.waitForFunction(() => /No strong wind warning/.test(document.getElementById('inBody').textContent));
+  ok(await page.$eval('#areaSel', s => s.value) === '18', 'chosen sea area remembered');
+  await page.selectOption('#areaSel', 'auto');
   // model without data: message, page still usable
   await page.selectOption('#modelSel', 'meteofrance_seamless');
   await page.waitForSelector('#msg:not([hidden])');

@@ -310,7 +310,7 @@ function crewAllowed(dev, method, p) {
   if (method === 'POST' && p === '/api/positions') return true;
   if (method !== 'GET') return false;
   return ['/api/vessel', '/api/crew', '/api/me', '/api/time', '/api/dashboard/settings', '/api/dashboard/hor-summary', '/api/settings/pre-voyage',
-    '/api/positions/latest', '/api/weather', '/api/wind', '/api/tides', '/api/settings/tide-provider'].includes(p) || /^\/api\/track\//.test(p);
+    '/api/positions/latest', '/api/weather', '/api/wind', '/api/inshore', '/api/tides', '/api/settings/tide-provider'].includes(p) || /^\/api\/track\//.test(p);
 }
 
 app.use((req, res, next) => {
@@ -1115,6 +1115,98 @@ app.get('/api/wind', async (req, res) => {
     res.json(out);
   } catch (e) {
     res.status(502).json(Object.assign(base, { error: 'wind forecast unavailable', detail: String(e.message || e) }));
+  }
+});
+
+// ---- Met Office inshore waters forecast (official text forecast to 12 nm, issued 4 times a day) ----
+// No data feed exists (checked 7 Oct 2026: the old CoreProductCache XML is gone), so the public page is read and parsed:
+// each area is <section class="marine-card [warning]"> with <h2 class="card-name">Name (n)</h2>, a forecast-block and an
+// outlook-block, each <h3>title</h3> + <dl><dt>Wind|Sea state|Weather|Visibility</dt><dd>...</dd></dl>.
+// Fetched at most every 15 minutes; the last good copy is kept (also across restarts) and served, marked stale, if the
+// Met Office cannot be reached. © Crown copyright, Met Office.
+const INSHORE_URL = process.env.INSHORE_URL || 'https://weather.metoffice.gov.uk/specialist-forecasts/coast-and-sea/inshore-waters-forecast';
+const INSHORE_PAGE = 'https://weather.metoffice.gov.uk/specialist-forecasts/coast-and-sea/inshore-waters-forecast';
+const INSHORE_AREAS = require('./inshore-areas.js');
+const htmlText = h => String(h || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, ' ')
+  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&rsquo;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/\s+/g, ' ').trim();
+function parseInshore(html) {
+  const one = (re, src) => { const m = (src || html).match(re); return m ? htmlText(m[1]) : ''; };
+  const out = {
+    issued: one(/Issued at:\s*<time>([\s\S]*?)<\/time>/i),
+    period: one(/<div id="sea-forecast-time"[^>]*>[\s\S]*?<p>[\s\S]*?<\/p>\s*<p>([\s\S]*?)<\/p>/i),
+    situation: one(/<p class="synopsis-text">([\s\S]*?)<\/p>/i),
+    areas: []
+  };
+  const secs = html.split(/<section aria-labelledby="area/i).slice(1);
+  for (const raw of secs) {
+    const sec = raw.split(/<\/section>/i)[0];
+    const head = one(/<h2[^>]*class="card-name"[^>]*>([\s\S]*?)<\/h2>/i, sec);
+    const m = head.match(/^(.*?)\s*\((\d+)\)\s*$/);
+    if (!m) continue;
+    const name = m[1], n = +m[2];
+    const blocks = [];
+    for (const cls of ['forecast-block', 'outlook-block']) {
+      const b = sec.match(new RegExp('<div class="' + cls + '">([\\s\\S]*?)(?=<div class="(?:forecast|outlook)-block">|$)', 'i'));
+      if (!b) continue;
+      const items = [];
+      const re = /<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/gi; let d;
+      while ((d = re.exec(b[1]))) items.push([htmlText(d[1]), htmlText(d[2])]);
+      blocks.push({ title: one(/<h3>([\s\S]*?)<\/h3>/i, b[1]).replace(/:$/, ''), items, text: items.length ? '' : htmlText(b[1].replace(/<h3>[\s\S]*?<\/h3>/i, '')) });
+    }
+    const card = (sec.match(/class="marine-card([^"]*)"/i) || [, ''])[1];
+    const pre = sec.split(/<div class="(?:forecast-block|general-situation)">/i)[0];
+    out.areas.push({
+      key: /^For Coastal areas up to 60/i.test(name) ? n + 'b' : String(n), n, name,
+      warning: /\bwarning\b/.test(card),
+      notes: (pre.match(/<p>([\s\S]*?)<\/p>/gi) || []).map(htmlText).filter(Boolean),   // e.g. 'Strong winds are forecast', 'Valid ... UTC'
+      situation: one(/<div class="general-situation">[\s\S]*?<p>([\s\S]*?)<\/p>/i, sec) || null,
+      blocks
+    });
+  }
+  return out;
+}
+const nmBetween = (a, b) => {
+  const r = Math.PI / 180, dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * 3440.065 * Math.asin(Math.min(1, Math.sqrt(h)));
+};
+// the inshore area whose coast is nearest the position (null if further than 60 nm from any)
+function nearestInshore(lat, lon) {
+  let best = null;
+  for (const a of INSHORE_AREAS) for (const p of a.pts) {
+    const d = nmBetween([lat, lon], p);
+    if (!best || d < best.nm) best = { n: a.n, name: a.name, nm: d };
+  }
+  return best && best.nm <= 60 ? { n: best.n, key: String(best.n), name: best.name, distanceNm: Math.round(best.nm * 10) / 10 } : null;
+}
+let inshoreMem = null;   // { at, data }
+async function inshoreForecast() {
+  if (inshoreMem && Date.now() - inshoreMem.at < 15 * 60000) return { data: inshoreMem.data, stale: false };
+  try {
+    const r = await fetch(INSHORE_URL, { signal: AbortSignal.timeout(15000), headers: { 'User-Agent': 'CrowsNest/1.0 (private marine dashboard; 15-min cache)' } });
+    if (!r.ok) throw new Error('Met Office answered ' + r.status);
+    const data = parseInshore(await r.text());
+    if (data.areas.length < (+process.env.INSHORE_MIN_AREAS || 10)) throw new Error('page layout changed: only ' + data.areas.length + ' areas found');
+    data.fetchedAt = new Date().toISOString();
+    inshoreMem = { at: Date.now(), data };
+    setSetting('inshoreLast', JSON.stringify(data));
+    return { data, stale: false };
+  } catch (e) {
+    const last = inshoreMem ? inshoreMem.data : (() => { try { return JSON.parse(getSetting('inshoreLast', '') || 'null'); } catch (x) { return null; } })();
+    if (last) return { data: last, stale: true, error: String(e.message || e) };
+    throw e;
+  }
+}
+app.get('/api/inshore', async (req, res) => {
+  const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
+  const nearest = Number.isFinite(lat) && Number.isFinite(lon) ? nearestInshore(lat, lon) : null;
+  try {
+    const f = await inshoreForecast();
+    res.json(Object.assign({ source: 'Met Office', copyright: '© Crown copyright, Met Office', url: INSHORE_PAGE, nearest, stale: f.stale, staleReason: f.error || null }, f.data));
+  } catch (e) {
+    res.status(502).json({ error: 'inshore waters forecast unavailable', detail: String(e.message || e), url: INSHORE_PAGE, nearest,
+      areas: INSHORE_AREAS.map(a => ({ key: String(a.n), n: a.n, name: a.name, blocks: [] })) });
   }
 });
 

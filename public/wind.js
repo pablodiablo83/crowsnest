@@ -78,7 +78,7 @@
     $('slider').max = String(S.rows.length - 1);
     renderList(); select(Math.min(S.idx, S.rows.length - 1), false);
     $('srcNote').textContent = 'Source: Open-Meteo, ' + d.model.label + ' model (' + d.model.detail + '). Updated ' + hm(Date.parse(d.fetchedAt)) +
-      '. Grid point ' + d.gridLat.toFixed(2) + ', ' + d.gridLon.toFixed(2) + '. Computer model forecasts, not an official marine forecast: check the Met Office inshore waters and shipping forecasts before sailing.';
+      '. Grid point ' + d.gridLat.toFixed(2) + ', ' + d.gridLon.toFixed(2) + '. Computer model forecasts, not an official marine forecast: read them with the Met Office inshore waters forecast on this page.';
   }
   function fillModels(models, cur) {
     var sel = $('modelSel');
@@ -199,6 +199,65 @@
     $('cmpOut').innerHTML = spread + '<table class="w-cmp"><thead><tr><th>Model</th><th>From</th><th>Wind</th><th>Gusts</th></tr></thead><tbody>' + trs.join('') + '</tbody></table>';
   }
 
+  /* ---------------------------------------------------------------- Met Office inshore waters */
+  var AREA_KEY = 'cn_inshoreArea', IN = null;
+  var WARN_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v5M12 18v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  // "06:00 (UTC) on Wed 7 Oct 2026" -> ms
+  function metTime(s) {
+    var m = String(s || '').match(/(\d{1,2}):(\d{2})\s*\(UTC\)\s*on\s*\w+\s+(\d{1,2})\s+(\w{3})\w*\s+(\d{4})/i);
+    if (!m) return null;
+    var mon = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(m[4].toLowerCase());
+    return mon < 0 ? null : Date.UTC(+m[5], mon, +m[3], +m[1], +m[2]);
+  }
+  function areaChoice() { return lsGet(AREA_KEY) || 'auto'; }
+  async function loadInshore() {
+    var d = null;
+    try {
+      var q = S.lat != null ? '?lat=' + S.lat.toFixed(3) + '&lon=' + S.lon.toFixed(3) : '';
+      var r = await fetch('/api/inshore' + q, { cache: 'no-store' });
+      d = await r.json();
+      if (!r.ok) { IN = Object.assign({ failed: (d && d.detail) || 'unavailable' }, d || {}); }
+      else IN = d;
+    } catch (e) { if (!IN) IN = { failed: 'no connection', areas: [] }; }
+    renderInshore();
+  }
+  function renderInshore() {
+    var d = IN || { areas: [] }, sel = $('areaSel'), choice = areaChoice();
+    var near = d.nearest, autoLabel = near ? 'Automatic: nearest is ' + near.n + '. ' + near.name : 'Automatic (no area within 60 miles)';
+    sel.innerHTML = '<option value="auto">' + esc(autoLabel) + '</option>' + (d.areas || []).map(function (a) {
+      return '<option value="' + esc(a.key) + '">' + esc(a.n + '. ' + a.name) + (a.warning ? '  ⚠' : '') + '</option>';
+    }).join('');
+    sel.value = (d.areas || []).some(function (a) { return a.key === choice; }) ? choice : 'auto';
+    var key = sel.value === 'auto' ? (near ? near.key : null) : sel.value;
+    var a = (d.areas || []).find(function (x) { return x.key === key; });
+    var issued = metTime(d.issued);
+    $('inIssued').textContent = d.failed && !a ? 'Met Office forecast unavailable (' + d.failed + ')' :
+      issued ? 'Issued ' + hm(issued) + ' ' + dayLabel(issued) + ' (' + p2(new Date(issued).getUTCHours()) + ':' + p2(new Date(issued).getUTCMinutes()) + ' UTC)' : (d.issued || '');
+    var html = '';
+    // never show "no warning" when we simply have no forecast
+    if (d.failed) html = '<p class="in-old">The Met Office forecast could not be loaded (' + esc(d.failed) + '). Check it on the Met Office site or by VHF/Navtex.</p>';
+    else if (!a) html = '<p class="in-meta">' + (key ? 'No forecast found for this area in the latest issue.' : 'Choose a sea area.') + '</p>';
+    else {
+      html += '<h3 class="in-name">' + esc(a.n + '. ' + a.name) + '</h3>';
+      if (a.warning) html += '<div class="in-warn" role="alert">' + WARN_SVG + '<span>Strong wind warning in force for this area</span></div>';
+      else html += '<p class="in-ok">No strong wind warning for this area</p>';
+      (a.notes || []).filter(function (t) { return !/^strong winds are forecast/i.test(t); }).forEach(function (t) { html += '<p class="in-meta">' + esc(t) + '</p>'; });
+      if (a.situation) html += '<p class="in-meta"><b>General situation:</b> ' + esc(a.situation) + '</p>';
+      (a.blocks || []).forEach(function (b) {
+        html += '<div class="in-block"><h3>' + esc(b.title) + '</h3>' + (b.items.length ? '<dl class="in-dl">' + b.items.map(function (it) {
+          return '<dt>' + esc(it[0]) + '</dt><dd' + (/^wind$/i.test(it[0]) ? ' class="wind"' : '') + '>' + esc(it[1]) + '</dd>';
+        }).join('') + '</dl>' : '<p>' + esc(b.text) + '</p>') + '</div>';
+      });
+    }
+    if (issued && Date.now() - issued > 7 * HOUR) html += '<p class="in-old">This issue is more than 7 hours old: a newer one should be out (they are issued every 6 hours).</p>';
+    if (d.stale) html += '<p class="in-old">Could not reach the Met Office just now: showing the last forecast fetched.</p>';
+    if (d.period) html += '<p class="in-meta">' + esc(d.period) + '</p>';
+    $('inBody').innerHTML = html;
+    $('inSitWrap').hidden = !d.situation;
+    $('inSit').textContent = d.situation || '';
+  }
+  $('areaSel').addEventListener('change', function () { lsSet(AREA_KEY, this.value); renderInshore(); });
+
   /* ---------------------------------------------------------------- events */
   $('list').addEventListener('click', function (e) { var b = e.target.closest('.w-row'); if (b) { S.picked = true; select(+b.getAttribute('data-k'), false); } });
   $('slider').addEventListener('input', function () { S.picked = true; select(+this.value, true); });
@@ -211,15 +270,15 @@
   });
   $('modelSel').addEventListener('change', function () { lsSet(MODEL_KEY, this.value); load(); });
   $('cmpBtn').addEventListener('click', compare);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && S.lat != null) load(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && S.lat != null) { load(); loadInshore(); } });
 
   (async function start() {
     renderTicks(); renderKey();
     var p = await findPosition();
-    if (!p) { $('place').textContent = 'No position yet'; var m = $('msg'); m.textContent = 'No position: open the dashboard once with location allowed, or log a position on the voyage map.'; m.hidden = false; return; }
+    if (!p) { loadInshore(); $('place').textContent = 'No position yet'; var m = $('msg'); m.textContent = 'No position: open the dashboard once with location allowed, or log a position on the voyage map.'; m.hidden = false; return; }
     S.lat = p.lat; S.lon = p.lon;
     $('place').textContent = ddm(p.lat, 'N', 'S') + ' ' + ddm(p.lon, 'E', 'W') + ' · ' + p.how;
-    load();
-    setInterval(function () { if (!document.hidden) load(); }, 30 * 60000);
+    load(); loadInshore();
+    setInterval(function () { if (!document.hidden) { load(); loadInshore(); } }, 30 * 60000);
   })();
 })();
