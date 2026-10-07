@@ -159,11 +159,17 @@
       html += '<div class="day"><div class="dayh"><h3>' + esc(dayLong(t0)) + '</h3><span>' + (range != null ? 'Range ' + m1(range) + ' m' + (sn != null ? ' · ' + sn + '% of springs' + (sn >= 85 ? ' (springs)' : sn <= 55 ? ' (neaps)' : '') : '') : '') + '</span></div>';
       html += tideSvg(pts, ex, t0, t1, lo, hi, step);
       html += '<table class="ext"><tr>' + ex.map(function (e) {
-        return '<td><b>' + e.type + ' ' + hm(e.t) + '</b> ' + m1(e.h) + ' m' + (e.std ? '<div class="det">' + esc(d.port.std.name) + ' ' + hm(e.std.t) + ' ' + m1(e.std.h) + ' m, ' + (e.dt >= 0 ? '+' : '−') + Math.abs(e.dt) + ' min, ' + (e.dh >= 0 ? '+' : '−') + Math.abs(e.dh).toFixed(2) + ' m</div>' : '') + '</td>';
+        return '<td><b>' + e.type + ' ' + hm(e.t) + '</b><br>' + m1(e.h) + ' m' + (e.std ? '<div class="det">' + esc(d.port.std.name) + ' ' + hm(e.std.t) + ' ' + m1(e.std.h) + ' m, ' + (e.dt >= 0 ? '+' : '−') + Math.abs(e.dt) + ' min, ' + (e.dh >= 0 ? '+' : '−') + Math.abs(e.dh).toFixed(2) + ' m</div>' : '') + '</td>';
       }).join('') + '</tr></table>';
+      // hourly heights in rows of 12 hours, so the table fits a phone and A4 (a clock-change day has 23 or 25 hours)
       var hrs = []; for (var h = t0; h < t1; h += HOUR) hrs.push(h);
-      html += '<table><tr><th class="l">h</th>' + hrs.map(function (t) { return '<th>' + p2(new Date(t).getHours()) + '</th>'; }).join('') + '</tr><tr><td class="l">m</td>' +
-        hrs.map(function (t) { var v = heightAt(d.curve, t); return '<td>' + (v == null ? '' : m1(v)) + '</td>'; }).join('') + '</tr></table></div>';
+      html += '<table class="hrs">';
+      for (var j = 0; j < hrs.length; j += 12) {
+        var row = hrs.slice(j, j + 12), pad = new Array(12 - row.length + 1).join('<td></td>');
+        html += '<tr><th class="l">Time</th>' + row.map(function (t) { return '<th>' + p2(new Date(t).getHours()) + '</th>'; }).join('') + pad.replace(/td/g, 'th') + '</tr>' +
+          '<tr><td class="l">m</td>' + row.map(function (t) { var v = heightAt(d.curve, t); return '<td>' + (v == null ? '' : m1(v)) + '</td>'; }).join('') + pad + '</tr>';
+      }
+      html += '</table></div>';
     }
     html += '<p class="note">Predicted from ' + (d.quality ? d.quality.days + ' days of the ' + esc(d.port.kind === 'sec' ? d.port.std.name : d.port.name) + ' tide-gauge record (UK National Tide Gauge Network via the IOC), analysed ' + esc(new Date(d.quality.analysedAt).toLocaleDateString('en-GB')) + '. ' : '') + esc(d.datum.note) + '</p>';
     return html + '</section>';
@@ -222,13 +228,13 @@
       var mx = Math.max.apply(null, rows.filter(function (r) { return r.t >= t0 && r.t < t1; }).map(function (r) { return r.kn; }));
       var mg = Math.max.apply(null, rows.filter(function (r) { return r.t >= t0 && r.t < t1 && r.g != null; }).map(function (r) { return r.g; }).concat([0]));
       html += '<div class="day"><div class="dayh"><h3>' + esc(dayLong(t0)) + '</h3><span>Max ' + Math.round(mx) + ' kn (F' + bft(mx) + '), gusts ' + Math.round(mg) + ' kn</span></div>';
-      for (var k = 0; k < day.length; k += 12) {
-        var c = day.slice(k, k + 12);
-        html += '<table><tr><th class="l">' + esc(tzName(t0)) + '</th>' + c.map(function (r) { return '<th>' + hm(r.t) + '</th>'; }).join('') + '</tr>' +
-          '<tr><td class="l">From</td>' + c.map(function (r) { return '<td>' + arrow(r.dir) + '<br>' + (r.dir == null ? '' : CARD[Math.round(r.dir / 22.5) % 16] + ' ' + String(r.dir).padStart(3, '0')) + '</td>'; }).join('') + '</tr>' +
-          '<tr><td class="l">Mean</td>' + c.map(function (r) { return '<td' + (r.kn >= 22 ? ' class="big"' : '') + '>' + Math.round(r.kn) + '</td>'; }).join('') + '</tr>' +
-          '<tr><td class="l">Gust</td>' + c.map(function (r) { return '<td' + (r.g >= 28 ? ' class="big"' : '') + '>' + (r.g == null ? '' : Math.round(r.g)) + '</td>'; }).join('') + '</tr>' +
-          '<tr><td class="l">Force</td>' + c.map(function (r) { return '<td>' + bft(r.kn) + '</td>'; }).join('') + '</tr></table>';
+      for (var k = 0; k < day.length; k += 8) {   // 8 columns a row: every 3 hours is one row, hourly is three
+        var c = day.slice(k, k + 8), fill = new Array(8 - c.length + 1).join('<td></td>');
+        html += '<table class="wnd"><tr><th class="l">' + esc(tzName(t0)) + '</th>' + c.map(function (r) { return '<th>' + hm(r.t) + '</th>'; }).join('') + fill.replace(/td/g, 'th') + '</tr>' +
+          '<tr><td class="l">From</td>' + c.map(function (r) { return '<td>' + arrow(r.dir) + '<br>' + (r.dir == null ? '' : CARD[Math.round(r.dir / 22.5) % 16] + '<br>' + String(r.dir).padStart(3, '0') + '°') + '</td>'; }).join('') + fill + '</tr>' +
+          '<tr><td class="l">Mean</td>' + c.map(function (r) { return '<td' + (r.kn >= 22 ? ' class="big"' : '') + '>' + Math.round(r.kn) + '</td>'; }).join('') + fill + '</tr>' +
+          '<tr><td class="l">Gust</td>' + c.map(function (r) { return '<td' + (r.g >= 28 ? ' class="big"' : '') + '>' + (r.g == null ? '' : Math.round(r.g)) + '</td>'; }).join('') + fill + '</tr>' +
+          '<tr><td class="l">Force</td>' + c.map(function (r) { return '<td>' + bft(r.kn) + '</td>'; }).join('') + fill + '</tr></table>';
       }
       html += '</div>';
     }

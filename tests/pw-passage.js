@@ -42,9 +42,25 @@ const fake = http.createServer((q, r) => {
   ok(await page.$$eval('#doc .sec:first-of-type .day', d => d.length) === 3, '3 days of tides by default');
   ok(await page.$$eval('#doc svg.tc path', p => p.filter(x => x.getAttribute('d').length > 500).length) >= 4, 'tidal curves and wind chart drawn');
   ok(/HW \d\d:\d\d/.test(doc) && /LW \d\d:\d\d/.test(doc), 'high and low waters listed');
-  ok(await page.$eval('#doc .day table:last-child', t => t.rows[0].cells.length) >= 24, 'hourly heights table');
-  ok(/Wind: your position/.test(doc) && /Force/.test(doc) && /SW 225/.test(doc), 'wind tables (from SW 225)');
+  ok(await page.$$eval('#doc .day table.hrs td', t => t.length) >= 24, 'hourly heights table');
+  ok(/Wind: your position/.test(doc) && /Force/.test(doc) && /SW225°/.test(doc), 'wind tables (from SW 225°)');
   ok(/inshore waters forecast/i.test(doc) && /14\. /.test(doc), 'inshore forecast for the nearest area (14)');
+  // layout at iPhone width: form fields side by side don't overlap, nothing in the pack is wider than the page
+  const fits = () => page.evaluate(() => {
+    const doc = document.getElementById('doc'), r = doc.getBoundingClientRect(), bad = [];
+    doc.querySelectorAll('table, svg, .day, .dayh').forEach(el => { const b = el.getBoundingClientRect(); if (b.right > r.right + 1 || b.left < r.left - 1) bad.push(el.tagName + '.' + el.className.baseVal + el.className + ' ' + Math.round(b.width) + '>' + Math.round(r.width)); });
+    const d = document.getElementById('oStart').getBoundingClientRect(), n = document.getElementById('oDays').getBoundingClientRect();
+    return { bad: bad.slice(0, 3), overlap: d.right > n.left + 0.5, pageScroll: document.documentElement.scrollWidth > window.innerWidth + 1 };
+  });
+  let f = await fits();
+  ok(!f.overlap, 'date and days boxes do not overlap at phone width');
+  ok(!f.bad.length && !f.pageScroll, 'pack fits the phone width (' + (f.bad.join('; ') || 'all tables and charts inside') + ')');
+  await page.selectOption('#oStep', '1');
+  await page.waitForFunction(() => /Ready/.test(document.getElementById('status').textContent) && document.querySelectorAll('#doc table.wnd').length > 6, null, { timeout: 30000 });
+  f = await fits();
+  ok(!f.bad.length && !f.pageScroll, 'hourly wind tables fit the phone width (' + (f.bad.join('; ') || 'ok') + ')');
+  ok(await page.$eval('#doc table.hrs', t => t.rows.length === 4 && t.rows[0].cells.length === 13), 'hourly heights in two rows of 12');
+  await page.selectOption('#oStep', '3');
   // a second port, wind at it, 2 days, hourly wind: URL carries the settings
   await page.click('#addPort');
   await page.selectOption('#ports .p-port:nth-child(2) select', 'porp');
@@ -58,6 +74,10 @@ const fake = http.createServer((q, r) => {
   // print layout: controls hidden, A4 PDF made
   await page.emulateMedia({ media: 'print' });
   ok(await page.$eval('.no-print', e => getComputedStyle(e).display === 'none'), 'settings hidden on paper');
+  await page.setViewportSize({ width: 718, height: 1000 });   // A4 printable width at 11 mm margins
+  f = await fits();
+  ok(!f.bad.length, 'pack fits A4 width (' + (f.bad.join('; ') || 'ok') + ')');
+  await page.setViewportSize({ width: 390, height: 844 });
   const pdf = await page.pdf({ format: 'A4', path: SP + '/passage.pdf' });
   const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
   ok(pages >= 3, 'A4 PDF made (' + pages + ' pages, ' + Math.round(pdf.length / 1024) + ' KB)');
