@@ -28,7 +28,7 @@ Cloudflare tunnel -> Caddy (basic auth for the web; /api/v1/* let through) -> se
 ## This week, from the iPhone (before the Mac)
 
 1. **Deploy the server**: run `deploy`. The web app is unchanged for you. New: Customise > Phones.
-2. **Caddy: let `/api/v1/*` through without basic auth.** The app has its own login (the device token). `server.js` refuses any `/api/v1` request without a valid token, apart from pairing and `/api/v1/time`. Send Claude the last 15 lines of `grep -n "basic\|@\|handle\|route" ~/crowsnest-hor/caddy/*` to get the exact edit. It is the same kind of exemption already used for the favicon. Check afterwards:
+2. **Done 7 Oct 2026.** Caddy: let `/api/v1/*` through without basic auth. The app has its own login (the device token). `server.js` refuses any `/api/v1` request without a valid token, apart from pairing and `/api/v1/time`. Send Claude the last 15 lines of `grep -n "basic\|@\|handle\|route" ~/crowsnest-hor/caddy/*` to get the exact edit. It is the same kind of exemption already used for the favicon. Check afterwards:
    ```
    for p in /api/v1/time /api/v1/vessel /api/vessel; do echo "$p $(curl -s -o /dev/null -w '%{http_code}' https://app.crows-nest.co.uk$p)"; done
    ```

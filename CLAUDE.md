@@ -21,7 +21,7 @@ Server is Dell "Blairquhosh"; app on 127.0.0.1:8090 behind Caddy basic-auth and 
 
 ## Open items
 - Rotate exposed Nextcloud credential and sudo password; give `skipper` its own password. (Per-phone accounts now exist: pairing + device tokens; the web is still one shared basic-auth login.)
-- iOS app: Caddy exemption for `/api/v1/*` (need Pabs's Caddyfile lines); Apple Developer enrolment; first real-device run on Pabs's Mac (back ~13 Oct 2026); TestFlight secrets. Checklist in docs/IOS-APP.md.
+- iOS app: Apple Developer enrolment; first real-device run on Pabs's Mac (back ~13 Oct 2026); TestFlight secrets. Checklist in docs/IOS-APP.md.
 - Boat-device (NMEA/Signal K) feed to POST /api/positions (could use a crew-role-free device token later); tides setup; AI bar stub; push notifications (rest-budget warning); Android.
 - Confirm voyage 1 starts 28 Sep 2026 00:00 BST (= 2026-09-27T23:00:00Z); curl check handed to Pabs 6 Oct 2026. (Vessel rename dropped by Pabs, 7 Oct 2026: leave the vessel name as it is.)
 - Safari/web: no service worker, so the web version cannot open from cold offline. Not planned: the iOS app replaces it.
@@ -46,4 +46,5 @@ Pabs works from an iPhone terminal (SSH to the server) - long pastes get garbled
 - CORS: `Date` is not a safelisted response header; the server exposes it for /api/v1 (outbox clock correction needs it).
 - `reqDevice` (current phone) is set around synchronous handlers only; do not read it after an `await`.
 - public/assets/icon.svg has a broken outline cropped by its viewBox; the app icon uses app/assets/icon.svg (redrawn). Regenerate icons with `cd app && npm run icons`.
+- Caddy: the LIVE config is `/etc/caddy/Caddyfile` (systemd `caddy`). `~/crowsnest-hor/caddy/crowsnest.Caddyfile` is a stale template (REPLACE_WITH_HASH) - never edit it as if live. The app.crows-nest.co.uk block (line ~27) has `@auth not path <icons> /manifest.json /api/v1/*` + `basicauth @auth`; `/api/v1/*` exemption added 7 Oct 2026 (verified: /api/v1/time 200, /api/v1/vessel 401 from the app, /api/vessel 401 from Caddy). Edit pattern: backup, sed one line, `caddy validate`, then `systemctl reload caddy`.
 
