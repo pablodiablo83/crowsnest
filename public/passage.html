@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#00154C">
+<title>Passage pack - Crow's Nest</title>
+<link rel="icon" type="image/png" href="/assets/icon.png">
+<link rel="apple-touch-icon" href="/assets/icon.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/hor.css?v=3">
+<link rel="stylesheet" href="/wave.css?v=2">
+<style>
+.p-wrap{max-width:860px;margin:0 auto;padding:14px 16px calc(60px + env(safe-area-inset-bottom))}
+.p-sub{color:var(--muted);font-size:14px;margin-top:2px}
+.p-opts{display:flex;flex-direction:column;gap:12px}
+.p-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.p-opts .h-fld{margin:0}
+.p-opts label{font-size:14px;font-weight:700}
+select.h-in{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,#fff 50%),linear-gradient(135deg,#fff 50%,transparent 50%);background-position:calc(100% - 22px) 22px,calc(100% - 16px) 22px;background-size:6px 6px;background-repeat:no-repeat;padding-right:40px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+select.h-in option,select.h-in optgroup{color:#00154C}
+.p-ports{display:flex;flex-direction:column;gap:8px}
+.p-port{display:flex;gap:8px}
+.p-port select{flex:1;min-width:0}
+.p-port button{flex:none;min-width:52px}
+.p-inc{display:flex;flex-wrap:wrap;gap:8px}
+.p-inc label{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:12px;padding:0 12px;min-height:44px;font-weight:700;font-size:15px}
+.p-inc input{width:20px;height:20px;accent-color:var(--cyan)}
+.p-hint{color:var(--muted);font-size:13px}
+.p-go{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.p-status{color:var(--muted);font-size:14px;margin:14px 0 8px}
+/* the document: white paper on screen, plain black on paper */
+.doc{background:#fff;color:#111;border-radius:6px;padding:18px 20px;font-family:'Lato',Arial,sans-serif;font-size:13px;line-height:1.35}
+.doc h1{font-size:22px;font-weight:900;margin:0}
+.doc h2{font-size:17px;font-weight:900;margin:0 0 2px}
+.doc h3{font-size:14px;font-weight:900;margin:0}
+.doc .meta{color:#444;font-size:12px}
+.doc .sec{margin-top:18px}
+.doc .day{border-top:1.5px solid #111;padding-top:6px;margin-top:10px;break-inside:avoid;page-break-inside:avoid}
+.doc .dayh{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.doc .dayh span{color:#444;font-size:12px}
+.doc svg.tc{width:100%;height:auto;display:block;margin-top:4px}
+.doc table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin-top:6px}
+.doc th,.doc td{border:1px solid #999;padding:2px 3px;text-align:center;font-size:11px}
+.doc th{background:#eee;font-weight:700}
+.doc td.l,.doc th.l{text-align:left}
+.doc .ext td{font-size:12px}
+.doc .ext b{font-size:13px}
+.doc .det{color:#555;font-size:10.5px}
+.doc .big{font-weight:900}
+.doc .warn{border:2px solid #111;padding:6px 8px;font-weight:900;margin:6px 0}
+.doc dl{display:grid;grid-template-columns:110px 1fr;gap:3px 10px;margin:4px 0 0}
+.doc dt{font-weight:700}
+.doc .blk{margin-top:8px;break-inside:avoid}
+.doc .note{color:#444;font-size:11px;margin-top:10px}
+.doc .newp{break-before:page;page-break-before:always}
+.doc .msg{border:1px dashed #999;padding:8px;color:#333}
+@media print{
+  @page{size:A4;margin:11mm}
+  html,body{background:#fff!important;color:#111!important}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .skip,.h-top,.no-print,.h-toast{display:none!important}
+  .p-wrap{max-width:none;padding:0}
+  .doc{padding:0;border-radius:0;font-size:10pt}
+  .doc .sec:first-of-type.newp{break-before:auto}
+}
+</style>
+<script src="/net.js?v=1"></script>
+</head>
+<body>
+<a class="skip" href="#doc">Skip to the passage pack</a>
+<div class="p-wrap">
+  <header class="h-top">
+    <a class="h-back" href="/" aria-label="Back to dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Dashboard</a>
+    <div class="h-title">
+      <h1>Passage pack</h1>
+      <p class="p-sub">Tides and weather to print or save as a PDF before sailing.</p>
+    </div>
+  </header>
+  <section class="h-card no-print" aria-labelledby="hOpts">
+    <h2 id="hOpts">What to include</h2>
+    <form class="p-opts" id="opts" novalidate>
+      <div class="p-row">
+        <div class="h-fld"><label for="oStart">From</label><input class="h-in" type="date" id="oStart"></div>
+        <div class="h-fld"><label for="oDays">Days</label><select class="h-in" id="oDays"></select></div>
+      </div>
+      <div class="p-inc" role="group" aria-label="Sections">
+        <label><input type="checkbox" id="iT" checked> Tides</label>
+        <label><input type="checkbox" id="iW" checked> Wind</label>
+        <label><input type="checkbox" id="iI" checked> Inshore forecast</label>
+      </div>
+      <div class="h-fld" id="fPorts"><label>Tide ports <span class="hint">Departure, destination, ports on the way (up to 4).</span></label>
+        <div class="p-ports" id="ports"></div>
+        <div style="margin-top:8px"><button type="button" class="h-btn ghost" id="addPort">+ Add a port</button></div>
+      </div>
+      <div class="p-row" id="fWind">
+        <div class="h-fld"><label for="oWat">Wind at</label><select class="h-in" id="oWat"></select></div>
+        <div class="h-fld"><label for="oModel">Model</label><select class="h-in" id="oModel"></select></div>
+      </div>
+      <div class="p-row" id="fWind2">
+        <div class="h-fld"><label for="oStep">Wind every</label><select class="h-in" id="oStep"><option value="3">3 hours</option><option value="1">hour</option></select></div>
+        <div class="h-fld" id="fArea"><label for="oArea">Inshore area</label><select class="h-in" id="oArea"><option value="auto">Nearest</option></select></div>
+      </div>
+      <div class="p-go">
+        <button type="submit" class="h-btn primary" id="go">Print or save as PDF</button>
+        <span class="p-hint">On iPhone: in Print, tap Share (top) and Save to Files for a PDF.</span>
+      </div>
+    </form>
+  </section>
+  <p class="p-status no-print" id="status" aria-live="polite">Preparing…</p>
+  <main id="doc" class="doc" tabindex="-1"></main>
+</div>
+<script src="/passage.js?v=1"></script>
+</body>
+</html>

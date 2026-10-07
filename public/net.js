@@ -166,7 +166,7 @@
     else if (/^https?:\/\//.test(h)) { e.preventDefault(); CNNet.openExternal(h); }
   }, true);
   window.print = function () {   // the app's web view cannot print: open this page in Safari, where Print works
-    if (window.confirm('Printing opens this page in Safari (web login). Then use Print there.')) CNNet.openExternal(CNNet.server() + location.pathname);
+    if (window.confirm('Printing opens this page in Safari (web login). Then use Print there.')) CNNet.openExternal(CNNet.server() + location.pathname + location.search);
   };
 
   /* ---- location through the native plugin (proper iOS permission prompt) ---- */
