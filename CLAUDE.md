@@ -23,7 +23,7 @@ Server is Dell "Blairquhosh"; app on 127.0.0.1:8090 behind Caddy basic-auth and 
 - Rotate exposed Nextcloud credential and sudo password; give `skipper` its own password. (Per-phone accounts now exist: pairing + device tokens; the web is still one shared basic-auth login.)
 - iOS app: Caddy exemption for `/api/v1/*` (need Pabs's Caddyfile lines); Apple Developer enrolment; first real-device run on Pabs's Mac (back ~13 Oct 2026); TestFlight secrets. Checklist in docs/IOS-APP.md.
 - Boat-device (NMEA/Signal K) feed to POST /api/positions (could use a crew-role-free device token later); tides setup; AI bar stub; push notifications (rest-budget warning); Android.
-- Vessel name "Bluejay" -> Alba Explorer and voyage 1 start (28 Sep 2026 00:00 BST = 2026-09-27T23:00:00Z): curl fix handed to Pabs 6 Oct 2026; confirm done.
+- Confirm voyage 1 starts 28 Sep 2026 00:00 BST (= 2026-09-27T23:00:00Z); curl check handed to Pabs 6 Oct 2026. (Vessel rename dropped by Pabs, 7 Oct 2026: leave the vessel name as it is.)
 - Safari/web: no service worker, so the web version cannot open from cold offline. Not planned: the iOS app replaces it.
 - Unused: public/app.js, public/styles.css, public/geo.html, public/log.html (check before deleting).
 
