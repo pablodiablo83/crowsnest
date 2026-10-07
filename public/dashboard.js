@@ -55,8 +55,11 @@ async function loadWeatherAndWind(lat, lon) {
 // ---------- Tides ----------
 async function loadTides() {
   try {
-    let port = ''; try { port = localStorage.getItem('cn_tidePort') || ''; } catch (e) {}
-    const d = await getJson('/api/tides' + (port ? '?port=' + encodeURIComponent(port) : ''));
+    // the port chosen on the Tides page, else the nearest to this phone's last fix (as the page does), else the server decides
+    let port = '', fix = null; try { port = localStorage.getItem('cn_tidePort') || ''; fix = JSON.parse(localStorage.getItem('cn_fix') || 'null'); } catch (e) {}
+    const q = port ? '?port=' + encodeURIComponent(port) : fix && isFinite(fix.lat) && isFinite(fix.lon) ? `?lat=${(+fix.lat).toFixed(3)}&lon=${(+fix.lon).toFixed(3)}` : '';
+    const d = await getJson('/api/tides' + q);
+    if (d.failed) { setText('tidesSub', `${esc(d.port || 'Tides')}: gauge data could not be read. Open to retry.`); return; }
     if (d.analysing) { setText('tidesSub', `${esc(d.port || 'Nearest port')}: setting up (reading a year of gauge data)&hellip;`); setTimeout(loadTides, 15000); return; }
     if (!d.configured || d.error) { setText('tidesSub', 'Tide data unavailable'); return; }
     const fmt = iso => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });

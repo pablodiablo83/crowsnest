@@ -27,6 +27,15 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
     const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
     return 2 * 3440.065 * Math.asin(Math.min(1, Math.sqrt(h)));
   };
+  // nearest standard port to a position; null for a missing or impossible position
+  const nearest = pos => {
+    if (!pos || !Number.isFinite(+pos.lat) || !Number.isFinite(+pos.lon) || Math.abs(pos.lat) > 90 || Math.abs(pos.lon) > 180) return null;
+    let best = null, bd = Infinity;
+    for (const s of STATIONS) { const d = nm({ lat: +pos.lat, lon: +pos.lon }, s); if (d < bd) { bd = d; best = s; } }
+    return best ? { code: best.code, name: best.name, distanceNm: bd } : null;
+  };
+  const lastPosition = () => db.prepare('SELECT lat, lon, ts FROM positions WHERE deleted_at IS NULL ORDER BY ts DESC LIMIT 1').get() || null;
+  const HOME = process.env.TIDE_HOME_PORT || 'mill';   // always kept analysed (Alba Explorer's home waters)
   const loadStation = code => {
     const r = db.prepare('SELECT * FROM tide_stations WHERE code = ?').get(code);
     return r ? Object.assign(r, { cons: JSON.parse(r.cons), levels: JSON.parse(r.levels) }) : null;
@@ -43,8 +52,11 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
     const d = await r.json();
     return (Array.isArray(d) ? d : []).map(x => ({ t: Date.parse(String(x.stime).replace(' ', 'T') + 'Z'), h: +x.slevel })).filter(o => Number.isFinite(o.t) && Number.isFinite(o.h));
   }
-  function analyseStation(code) {
-    if (jobs.get(code) && jobs.get(code).state === 'running') return jobs.get(code);
+  const RETRY_MS = 10 * 60000;   // a failed analysis is retried at most every 10 minutes (not on every page poll)
+  function analyseStation(code, force) {
+    const old = jobs.get(code);
+    if (old && old.state === 'running') return old;
+    if (old && old.state === 'failed' && !force && Date.now() - old.failedAt < RETRY_MS) return old;
     const job = { state: 'running', started: new Date().toISOString(), done: 0, total: 13 };
     jobs.set(code, job);
     queue = queue.then(async () => {
@@ -76,7 +88,8 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
             JSON.stringify(r.cons.map(c => ({ name: c.name, H: +c.H.toFixed(5), G: +c.G.toFixed(3) }))), JSON.stringify(levels), onCD ? 'CD' : 'LAT', off);
         jobs.delete(code);
       } catch (e) {
-        job.state = 'failed'; job.error = String(e.message || e);
+        job.state = 'failed'; job.error = String(e.message || e); job.failedAt = Date.now();
+        console.error('tide analysis ' + code + ' failed: ' + job.error);
       }
     });
     return job;
@@ -149,7 +162,7 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
   });
   app.post('/api/tides/analyse/:code', (req, res) => {
     if (!station(req.params.code)) return res.status(404).json({ error: 'unknown station' });
-    res.status(202).json({ status: 'analysing', job: analyseStation(req.params.code) });
+    res.status(202).json({ status: 'analysing', job: analyseStation(req.params.code, true) });
   });
 
   // ---- predictions for a port: ?port=<station code> | sec:<id>  &from=<ms>&days=<1-14>
@@ -180,19 +193,20 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
   app.get('/api/tides/predict', (req, res) => {
     const days = Math.min(14, Math.max(1, parseInt(req.query.days, 10) || 7));
     const from = Number.isFinite(+req.query.from) && +req.query.from > 0 ? +req.query.from : Date.now() - 6 * 3600000;
-    const r = predictPort(String(req.query.port || 'mill'), from, from + days * DAY);
+    const r = predictPort(String(req.query.port || HOME), from, from + days * DAY);
     res.status(r.status).json(Object.assign({ source: 'Crow\'s Nest harmonic prediction from UK National Tide Gauge Network data (IOC Sea Level Monitoring Facility)' }, r.body));
   });
 
   // ---- dashboard card (kept compatible with older app builds: { configured, events: [{ type, time, heightM }] })
   app.get('/api/tides', (req, res) => {
+    // port: asked for, else nearest to the phone's position (?lat&lon), else to the vessel's last position, else home
     let port = String(req.query.port || '');
-    if (!port) {
-      const last = db.prepare('SELECT lat, lon FROM positions WHERE deleted_at IS NULL ORDER BY ts DESC LIMIT 1').get();
-      port = last ? STATIONS.slice().sort((a, b) => nm(last, a) - nm(last, b))[0].code : 'mill';
-    }
+    if (!port) port = (nearest({ lat: parseFloat(req.query.lat), lon: parseFloat(req.query.lon) }) || nearest(lastPosition()) || { code: HOME }).code;
     const now = Date.now(), r = predictPort(port, now - 2 * 3600000, now + 36 * 3600000);
-    if (r.status === 202) return res.json({ configured: true, analysing: true, port: r.body.station && r.body.station.name, events: [] });
+    if (r.status === 202) {
+      const failed = r.body.status === 'failed';   // older dashboards read "error" as unavailable
+      return res.json(Object.assign({ configured: true, analysing: !failed, port: r.body.station && r.body.station.name, portId: port, events: [] }, failed ? { failed: true, error: r.body.error } : {}));
+    }
     if (r.status !== 200) return res.status(r.status).json(Object.assign({ configured: true }, r.body));
     const b = r.body, cur = b.curve, i = cur.findIndex(p => p[0] >= now);
     res.json({ configured: true, source: b.source, port: b.port.name, portId: port, datum: b.datum.label,
@@ -202,11 +216,11 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
   });
 
   // keep the vessel's nearest standard port analysed (startup, then daily check)
-  setTimeout(() => {
-    const last = db.prepare('SELECT lat, lon FROM positions WHERE deleted_at IS NULL ORDER BY ts DESC LIMIT 1').get();
-    const code = last ? STATIONS.slice().sort((a, b) => nm(last, a) - nm(last, b))[0].code : 'mill';
-    if (!process.env.NO_TIDE_WARMUP) constantsFor(code);
+  // keep the home port and the vessel's nearest standard port analysed (5 s after start; re-checked on use)
+  if (!process.env.NO_TIDE_WARMUP) setTimeout(() => {
+    constantsFor(HOME);
+    const n = nearest(lastPosition()); if (n && n.code !== HOME) constantsFor(n.code);
   }, 5000).unref();
 
-  return { STATIONS, analyseStation, constantsFor, jobs };
+  return { STATIONS, analyseStation, constantsFor, jobs, nearest, lastPosition, predictPort };
 };

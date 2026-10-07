@@ -55,10 +55,11 @@
     catch (e) { $('nowBox').innerHTML = '<p class="t-msg">Tide predictions unavailable (' + esc(e.message) + ').</p>'; return; }
     if (r.status === 202) {   // first use of this gauge: a year of readings is being fetched and analysed
       var d = r.d, pr = d.progress;
-      $('nowBox').innerHTML = d.status === 'failed' ? '<p class="t-msg">Could not analyse ' + esc(d.station.name) + ': ' + esc(d.error || '') + '. Choose another port.</p>' :
+      $('nowBox').innerHTML = d.status === 'failed' ? '<p class="t-msg">Could not read the ' + esc(d.station.name) + ' gauge data: ' + esc(d.error || 'unknown error') + '.</p><div class="h-actions"><button type="button" class="h-btn ghost" id="tRetry">Try again</button></div>' :
         '<div class="t-wait"><div class="cn-wave lg" role="status" aria-label="Analysing"></div><p class="h-sub">First use of ' + esc(d.station.name) + ': reading a year of tide-gauge data and working out its tidal constants' +
         (pr ? ' (' + Math.min(pr.done, pr.total) + ' of ' + pr.total + ' months)' : '') + '. This takes about a minute, once.</p></div>';
       if (d.status !== 'failed') S.poll = setTimeout(load, 4000);
+      else $('tRetry').addEventListener('click', async function () { try { await api('/api/tides/analyse/' + encodeURIComponent(d.station.code), { method: 'POST' }); } catch (e) {} load(); });
       return;
     }
     S.data = r.d;

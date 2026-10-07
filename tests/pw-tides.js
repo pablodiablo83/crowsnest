@@ -10,9 +10,10 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
 const TRUTH = [['M2', 1.130, 342.2], ['S2', 0.305, 34.0], ['N2', 0.213, 315.6], ['K1', 0.106, 192.1], ['O1', 0.100, 45.9], ['M4', 0.092, 92.4],
   ['K2', 0.089, 34.2], ['MS4', 0.086, 119.9], ['nu2', 0.055, 316.8], ['L2', 0.054, 354.9], ['2N2', 0.052, 279.9], ['M3', 0.050, 112.8]].map(([name, H, G]) => ({ name, H, G }));
 const Z0 = 2.192;
-let hits = 0, seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
+let hits = 0, wickHits = 0, seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
 const fake = http.createServer((q, r) => {
   hits++;
+  if (/code=wick/.test(q.url)) { wickHits++; r.writeHead(503); return r.end('down'); }   // a gauge whose service fails
   const u = new URL(q.url, 'http://x'), a = Date.parse(u.searchParams.get('timestart') + 'T00:00:00Z'), b = Date.parse(u.searchParams.get('timestop') + 'T00:00:00Z');
   const ts = []; for (let t = a; t <= b; t += 15 * 60000) ts.push(t);
   const h = T.predict(TRUTH, Z0, ts);
@@ -46,6 +47,23 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   // --- dashboard card
   const card = await (await fetch(B + '/api/tides')).json();
   ok(card.configured && card.port === 'Millport' && card.events.length === 4 && card.curve.length > 30 && card.now, 'dashboard card: port, next 4 events, curve, now');
+  const near = await (await fetch(B + '/api/tides?lat=55.85&lon=-4.95')).json();
+  ok(near.portId === 'mill', 'dashboard card follows the phone position (?lat&lon)');
+  // --- a gauge that fails: reported, not restarted on every poll, retried on request
+  await fetch(B + '/api/tides/predict?port=wick');
+  let w = null; for (let i = 0; i < 20 && !(w && w.status === 'failed'); i++) { await sleep(500); w = await (await fetch(B + '/api/tides/predict?port=wick')).json(); }
+  ok(w.status === 'failed' && /503/.test(w.error), 'failed analysis reported (' + w.error + ')');
+  const wh = wickHits; await fetch(B + '/api/tides/predict?port=wick'); await fetch(B + '/api/tides?port=wick'); await sleep(300);
+  ok(wickHits === wh, 'failed gauge not re-fetched on every poll');
+  const wc = await (await fetch(B + '/api/tides?port=wick')).json();
+  ok(wc.failed && !wc.analysing && wc.error, 'dashboard card reports the failure');
+  await fetch(B + '/api/tides/analyse/wick', { method: 'POST' }); await sleep(500);
+  ok(wickHits > wh, 'Try again re-fetches');
+  // --- diagnostics tool reads the same database
+  if (process.env.DATA_DIR_FOR_TOOL) {
+    const out = require('child_process').execFileSync('node', [__dirname + '/../tools/tide-check.js'], { env: Object.assign({}, process.env, { DATA_DIR: process.env.DATA_DIR_FOR_TOOL }) }).toString();
+    ok(/mill: \d+ readings.*-> (HW|LW) /.test(out), 'tools/tide-check.js predicts from stored constants');
+  }
   // --- secondary port (Admiralty method)
   r = await fetch(B + '/api/tides/secondary', { method: 'POST', headers: J, body: JSON.stringify({ name: 'X', std: 'mill', hwTimes: [['0000', 10], ['0000', 5]], lwTimes: [['0000', 0], ['0600', 0]], stdLevels: { MHWS: 3.4, MHWN: 2.8, MLWN: 1.0, MLWS: 0.3 }, diffs: { MHWS: 0, MHWN: 0, MLWN: 0, MLWS: 0 } }) });
   ok(r.status === 400, 'secondary port with the same two times refused');
