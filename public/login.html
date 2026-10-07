@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#00154C">
 <title>Sign in - Crow's Nest</title>
-<link rel="icon" type="image/png" href="/assets/icon.png">
-<link rel="apple-touch-icon" href="/assets/icon.png">
+<link rel="icon" type="image/png" href="/assets/icon.png?v=2">
+<link rel="apple-touch-icon" href="/assets/icon.png?v=2">
 <link rel="manifest" href="/manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@ html,body{margin:0;min-height:100%}
 body{background:radial-gradient(120% 70% at 50% 0%,#0B2A6B 0%,var(--bg) 60%) fixed,var(--bg);color:#fff;font-family:'Lato',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
   display:flex;flex-direction:column;align-items:center;min-height:100vh;min-height:100dvh;padding:calc(env(safe-area-inset-top) + 8vh) 20px calc(env(safe-area-inset-bottom) + 24px)}
 .brand{text-align:center;margin-bottom:26px}
-.mark{width:118px;height:118px;display:block;margin:0 auto 14px;filter:drop-shadow(0 8px 24px rgba(0,0,0,.35))}
+.mark{width:112px;height:112px;display:block;margin:0 auto 16px;border-radius:25px;box-shadow:0 0 0 1px rgba(255,255,255,.14),0 10px 28px rgba(0,0,0,.4)}
 .brand h1{margin:0;font-size:30px;font-weight:900;letter-spacing:.01em}
 .brand p{margin:6px 0 0;color:var(--muted);font-size:15px}
 form{width:100%;max-width:380px;background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:22px;padding:22px 18px 18px;box-shadow:0 18px 50px rgba(0,0,0,.35)}
@@ -39,15 +39,7 @@ form.signing .busy{display:block}
 </head>
 <body>
 <header class="brand">
-  <svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true">
-    <circle cx="500" cy="500" r="490" fill="#fff"/>
-    <g transform="translate(500 500) scale(.8) translate(-500 -520)">
-    <g fill="#062F4A"><rect x="232" y="262" width="196" height="150" rx="44"/><rect x="572" y="262" width="196" height="150" rx="44"/><rect x="400" y="430" width="200" height="170" rx="30"/><circle cx="315" cy="565" r="215"/><circle cx="685" cy="565" r="215"/></g>
-    <circle cx="315" cy="565" r="140" fill="#fff"/><circle cx="685" cy="565" r="140" fill="#fff"/>
-    <g transform="translate(-15 155)"><path fill="#28A7C4" d="M210 402c45-18 73 10 119 17 42 7 78 0 126-20-3 53-43 94-105 94-70 0-124-38-140-91z"/><path fill="#0C829B" d="M210 402c39 20 70 30 112 29 44-1 82-15 133-32-13 55-61 94-125 94-58 0-106-33-120-91z"/></g>
-    <g fill="#0C829B" transform="translate(15 155)"><rect x="595" y="430" width="38" height="72"/><rect x="650" y="395" width="38" height="107"/><rect x="705" y="355" width="38" height="147"/></g>
-    </g>
-  </svg>
+  <img class="mark" src="/assets/icon.svg" alt="">
   <h1>Crow's Nest</h1>
   <p>Ship's dashboard and hours of rest</p>
 </header>

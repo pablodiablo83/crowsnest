@@ -1,14 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <!-- Crow's Nest app icon, option A "Lookout" (chosen 7 Oct 2026): white binoculars on navy, sea in the left lens,
-       data bars in the right. Full bleed: iOS applies the rounded mask. Source of every icon (npm run icons). -->
+       data bars in the right. Mark only, transparent: the splash screen (npm run icons). -->
   <defs>
     <linearGradient id="cnBg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E3F8F"/><stop offset="1" stop-color="#00154C"/></linearGradient>
     <radialGradient id="cnLens" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#0B2E6E"/><stop offset="1" stop-color="#00154C"/></radialGradient>
     <clipPath id="cnL"><circle cx="315" cy="565" r="150"/></clipPath>
     <clipPath id="cnR"><circle cx="685" cy="565" r="150"/></clipPath>
   </defs>
-  <rect width="1024" height="1024" fill="url(#cnBg)"/>
-  <g id="cnMark" transform="translate(512 530) scale(.94) translate(-500 -521)">
+    <g id="cnMark" transform="translate(512 530) scale(.94) translate(-500 -521)">
     <g fill="#FFFFFF"><rect x="232" y="262" width="196" height="150" rx="44"/><rect x="572" y="262" width="196" height="150" rx="44"/><rect x="400" y="430" width="200" height="170" rx="30"/><circle cx="315" cy="565" r="215"/><circle cx="685" cy="565" r="215"/></g>
     <circle cx="315" cy="565" r="150" fill="url(#cnLens)"/><circle cx="685" cy="565" r="150" fill="url(#cnLens)"/>
     <g clip-path="url(#cnL)">
