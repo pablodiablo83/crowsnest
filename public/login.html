@@ -10,7 +10,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/wave.css?v=1">
+<link rel="stylesheet" href="/wave.css?v=2">
 <style>
 :root{color-scheme:dark;--bg:#00154C;--line:rgba(255,255,255,.18);--muted:rgba(255,255,255,.72);--cyan:#28A7C4;--cyan-l:#7FD3E6;--amber:#F5B041;--coral:#FF8A7A}
 *{box-sizing:border-box}
@@ -93,7 +93,7 @@ form.signing .busy{display:block}
       var r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p, remember: document.getElementById('r').checked }) });
       var d = {}; try { d = await r.json(); } catch (x) {}
       if (!r.ok) throw new Error(d.error || ('Sign-in failed (' + r.status + ')'));
-      setTimeout(go, Math.max(0, 450 - (Date.now() - t0)));   // let the wave roll once, then go
+      setTimeout(go, Math.max(0, 900 - (Date.now() - t0)));   // let the swell roll past, then go
     } catch (x) {
       f.classList.remove('signing');
       var m = String(x.message || x);
