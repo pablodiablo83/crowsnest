@@ -10,6 +10,7 @@ iOS app: `app/` = Capacitor 8 shell (Swift Package Manager) bundling `public/`; 
 Server is Dell "Blairquhosh"; app on 127.0.0.1:8090 behind Caddy basic-auth and a Cloudflare tunnel (https://app.crows-nest.co.uk). The web has no auth of its own (Caddy basic auth); `/api/v1/*` is for the phone app and requires a device token (server.js checks it; Caddy must let `/api/v1/*` through). `caddy/`, `cloudflared/`, `data/`, `.env` are NOT in git.
 
 ## Rules
+- **Always say when something is ready to deploy** (Pabs, 7 Oct 2026). After every push, end the reply with: `Ready to deploy: run deploy, expect DEPLOYED <short sha>` plus what to test live (which page, what to tap, what should happen). If a push changes only docs/tests/CI, say "no deploy needed". If it changes `app/` (or `public/` used by the app), also say the app needs `npm run sync` + rebuild.
 - Never commit secrets, `data/`, or Caddy/cloudflared config.
 - Keep replies and server output short: ask Pabs for the last 15 lines only (`2>&1 | tail -15`).
 - Hours of Rest is MCA/STCW: min 10 h rest/24 h, 77 h/7 d. Engine in `engine/` (spec: `engine/SPEC.md`). Voyages are per crew member; the voyage track is vessel-level (positions found by time window).
