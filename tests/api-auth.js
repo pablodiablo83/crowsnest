@@ -19,7 +19,7 @@ const userTool = (args, pw) => execFileSync('node', [path.join(__dirname, '..', 
   // --- every route in server.js is closed without a sign-in (except the deliberate few)
   const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
   const routes = [...src.matchAll(/app\.(get|post|put|delete)\('([^']+)'/g)].map(m => [m[1].toUpperCase(), m[2].replace(/:[a-z]+/gi, 'x')]);
-  const OPEN = new Set(['POST /api/auth/login', 'GET /api/auth/status', 'GET /healthz', 'GET /api/vessel']);
+  const OPEN = new Set(['POST /api/auth/login', 'GET /api/auth/status', 'GET /healthz']);
   let leaks = [];
   for (const [m, p] of routes) {
     if (OPEN.has(m + ' ' + p)) continue;

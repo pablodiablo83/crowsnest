@@ -268,9 +268,9 @@ const app = express();
 app.use(express.json());
 
 // ---- web sign-in (auth.js): ONE gate in front of every page and API route ----
-// Open without signing in: the login page and its images/styles, the health check, POST /api/auth/login, /api/v1/*
-// (the phone app; checked by its own device-token gate below), and GET /api/vessel (deploy.sh's old health check -
-// vessel name/flag only; remove once every server runs the new deploy.sh). Everything else needs a session cookie.
+// Open without signing in: the login page and its images/styles, the health check, POST /api/auth/login,
+// GET /api/auth/status, and /api/v1/* (the phone app; checked by its own device-token gate below).
+// Everything else needs a session cookie. Caddy no longer asks for a password (removed 7 Oct 2026): this gate is the lock.
 const auth = require('./auth.js');
 auth.init(db);
 const PUBLIC_GET = [/^\/login\.html$/, /^\/wave\.css$/, /^\/assets\/[\w.-]+$/, /^\/favicon\.ico$/, /^\/apple-touch-icon[\w-]*\.png$/, /^\/manifest\.json$/, /^\/healthz$/];
@@ -278,7 +278,7 @@ app.use((req, res, next) => {
   const p = req.path;
   if (/^\/api\/v1(\/|$)/i.test(p)) return next();
   if ((req.method === 'POST' && p === '/api/auth/login') || (req.method === 'GET' && p === '/api/auth/status')) return next();
-  if ((req.method === 'GET' || req.method === 'HEAD') && (PUBLIC_GET.some(r => r.test(p)) || p === '/api/vessel')) return next();
+  if ((req.method === 'GET' || req.method === 'HEAD') && PUBLIC_GET.some(r => r.test(p))) return next();
   const s = auth.readSession(db, auth.cookieOf(req));
   if (!s) {
     if (/^\/api\//i.test(p)) return res.status(401).json({ code: 'login_required', error: 'sign in first' });
