@@ -1,0 +1,14 @@
+# One-off probe: print the structure of the Met Office inshore waters forecast pages (dev sandbox cannot reach them).
+name: Probe Met Office inshore
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['tests/probe/metoffice-probe.py', '.github/workflows/probe-metoffice.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 tests/probe/metoffice-probe.py
