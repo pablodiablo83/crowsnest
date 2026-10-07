@@ -266,7 +266,78 @@ db.transaction(() => {
 
 const app = express();
 app.use(express.json());
+
+// ---- web sign-in (auth.js): ONE gate in front of every page and API route ----
+// Open without signing in: the login page and its images/styles, the health check, POST /api/auth/login, /api/v1/*
+// (the phone app; checked by its own device-token gate below), and GET /api/vessel (deploy.sh's old health check -
+// vessel name/flag only; remove once every server runs the new deploy.sh). Everything else needs a session cookie.
+const auth = require('./auth.js');
+auth.init(db);
+const PUBLIC_GET = [/^\/login\.html$/, /^\/wave\.css$/, /^\/assets\/[\w.-]+$/, /^\/favicon\.ico$/, /^\/apple-touch-icon[\w-]*\.png$/, /^\/manifest\.json$/, /^\/healthz$/];
+app.use((req, res, next) => {
+  const p = req.path;
+  if (/^\/api\/v1(\/|$)/i.test(p)) return next();
+  if ((req.method === 'POST' && p === '/api/auth/login') || (req.method === 'GET' && p === '/api/auth/status')) return next();
+  if ((req.method === 'GET' || req.method === 'HEAD') && (PUBLIC_GET.some(r => r.test(p)) || p === '/api/vessel')) return next();
+  const s = auth.readSession(db, auth.cookieOf(req));
+  if (!s) {
+    if (/^\/api\//i.test(p)) return res.status(401).json({ code: 'login_required', error: 'sign in first' });
+    if (req.method === 'GET') return res.redirect(302, '/login.html?next=' + encodeURIComponent(req.originalUrl));
+    return res.status(401).send('sign in first');
+  }
+  // a change must come from this site (SameSite=Lax already stops most cross-site requests; this closes the rest)
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    const o = req.get('Origin');
+    if (o && o.replace(/^https?:\/\//i, '') !== req.get('host')) return res.status(403).json({ code: 'cross_site', error: 'request from another site refused' });
+  }
+  if (s.user.role === 'crew' && /^\/api\//i.test(p) && !/^\/api\/auth\//.test(p) && !crewAllowed({ crew_id: s.user.crew_id }, req.method, p))
+    return res.status(403).json({ code: 'forbidden', error: 'this account is for one crew member only' });
+  req.user = s.user; req.sid = auth.cookieOf(req);
+  reqDevice = { id: null, name: s.user.username, role: s.user.role, crew_id: s.user.crew_id, web: true };   // audit + crew limits
+  try { next(); } finally { reqDevice = null; }
+});
 app.use(express.static(path.join(__dirname, 'public')));
+
+const signFails = new Map();   // key -> timestamps of failed sign-ins in the last 15 minutes (per username and per address)
+function tooMany(keys) {
+  const now = Date.now();
+  return keys.some(([k, limit]) => { const a = (signFails.get(k) || []).filter(t => t > now - 15 * 60000); signFails.set(k, a); return a.length >= limit; });
+}
+const clientIp = req => String(req.get('CF-Connecting-IP') || String(req.get('X-Forwarded-For') || '').split(',')[0] || req.ip || '').trim();
+app.post('/api/auth/login', (req, res) => {
+  const b = req.body || {}, username = String(b.username || '').trim(), password = String(b.password || '');
+  const keys = [['u:' + username.toLowerCase(), 10], ['ip:' + clientIp(req), 30]];
+  if (tooMany(keys)) return res.status(429).json({ code: 'too_many_attempts', error: 'too many wrong passwords - wait 15 minutes' });
+  const u = username ? db.prepare('SELECT * FROM users WHERE username = ? AND disabled_at IS NULL').get(username) : null;
+  const ok = auth.verifyPassword(password, u ? u.pass_hash : auth.DUMMY) && !!u;
+  if (!ok) {
+    keys.forEach(([k]) => signFails.set(k, (signFails.get(k) || []).concat(Date.now())));
+    return res.status(401).json({ code: 'bad_login', error: 'wrong username or password' });
+  }
+  keys.forEach(([k]) => signFails.delete(k));
+  const s = auth.createSession(db, u.id, b.remember !== false, req.get('User-Agent'));
+  auth.setCookie(req, res, s.sid, s.maxAge);
+  auditRaw('sign-in', 'user:' + u.id, u.crew_id, null, { username: u.username }, 'web ' + clientIp(req));
+  res.json({ ok: true, user: auth.userView(u) });
+});
+app.post('/api/auth/logout', (req, res) => {
+  auth.endSession(db, auth.cookieOf(req)); auth.clearCookie(req, res);
+  res.json({ ok: true });
+});
+// for the login page: are there any accounts yet? (says nothing else)
+app.get('/api/auth/status', (req, res) => res.json({ accounts: db.prepare('SELECT COUNT(*) AS n FROM users WHERE disabled_at IS NULL').get().n > 0 }));
+app.get('/api/auth/me', (req, res) => res.json({ user: auth.userView(req.user) }));
+app.post('/api/auth/password', (req, res) => {
+  const b = req.body || {}, u = req.user;
+  if (!auth.verifyPassword(String(b.current || ''), u.pass_hash)) return res.status(400).json({ code: 'bad_current', error: 'the current password is wrong' });
+  const bad = auth.passwordProblem(b.next); if (bad) return res.status(400).json({ code: 'weak', error: bad });
+  db.transaction(() => {
+    db.prepare('UPDATE users SET pass_hash = ? WHERE id = ?').run(auth.hashPassword(b.next), u.id);
+    db.prepare('DELETE FROM sessions WHERE user_id = ? AND id_hash != ?').run(u.id, auth.sha256(req.sid));   // sign out everywhere else
+    auditRaw('user-password', 'user:' + u.id, u.crew_id, null, { username: u.username }, 'web');
+  })();
+  res.json({ ok: true });
+});
 
 // ---- phones (the iOS app): device tokens, pairing, /api/v1 ----
 // The web app sits behind Caddy basic auth and has no login of its own. The app talks to /api/v1/*, which Caddy lets

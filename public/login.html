@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#00154C">
+<title>Sign in - Crow's Nest</title>
+<link rel="icon" type="image/png" href="/assets/icon.png">
+<link rel="apple-touch-icon" href="/assets/icon.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/wave.css?v=1">
+<style>
+:root{color-scheme:dark;--bg:#00154C;--line:rgba(255,255,255,.18);--muted:rgba(255,255,255,.72);--cyan:#28A7C4;--cyan-l:#7FD3E6;--amber:#F5B041;--coral:#FF8A7A}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(120% 70% at 50% 0%,#0B2A6B 0%,var(--bg) 60%) fixed,var(--bg);color:#fff;font-family:'Lato',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  display:flex;flex-direction:column;align-items:center;min-height:100vh;min-height:100dvh;padding:calc(env(safe-area-inset-top) + 8vh) 20px calc(env(safe-area-inset-bottom) + 24px)}
+.brand{text-align:center;margin-bottom:26px}
+.mark{width:118px;height:118px;display:block;margin:0 auto 14px;filter:drop-shadow(0 8px 24px rgba(0,0,0,.35))}
+.brand h1{margin:0;font-size:30px;font-weight:900;letter-spacing:.01em}
+.brand p{margin:6px 0 0;color:var(--muted);font-size:15px}
+form{width:100%;max-width:380px;background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:22px;padding:22px 18px 18px;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+label{display:block;font-weight:700;font-size:14px;margin:0 0 6px}
+input[type=text],input[type=password]{width:100%;min-height:50px;border-radius:14px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.18);color:#fff;font:inherit;font-size:17px;padding:0 14px;margin-bottom:14px}
+input:focus{outline:3px solid var(--cyan-l);outline-offset:1px;border-color:transparent}
+.row{display:flex;align-items:center;gap:10px;margin:2px 0 16px;font-size:15px;color:var(--muted)}
+.row input{width:22px;height:22px;accent-color:var(--cyan)}
+button{width:100%;min-height:52px;border:0;border-radius:14px;background:var(--amber);color:#00154C;font:inherit;font-weight:900;font-size:17px;cursor:pointer}
+button:disabled{opacity:.6}
+.err{color:var(--coral);font-weight:700;font-size:15px;min-height:1.4em;margin:0 0 10px}
+.busy{display:none;text-align:center;margin-top:6px}
+.busy p{margin:0;color:var(--muted);font-size:14px}
+form.signing .fields{display:none}
+form.signing .busy{display:block}
+.foot{margin-top:auto;padding-top:28px;color:rgba(255,255,255,.45);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<header class="brand">
+  <svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true">
+    <circle cx="500" cy="500" r="490" fill="#fff"/>
+    <g transform="translate(500 500) scale(.8) translate(-500 -520)">
+    <g fill="#062F4A"><rect x="232" y="262" width="196" height="150" rx="44"/><rect x="572" y="262" width="196" height="150" rx="44"/><rect x="400" y="430" width="200" height="170" rx="30"/><circle cx="315" cy="565" r="215"/><circle cx="685" cy="565" r="215"/></g>
+    <circle cx="315" cy="565" r="140" fill="#fff"/><circle cx="685" cy="565" r="140" fill="#fff"/>
+    <g transform="translate(-15 155)"><path fill="#28A7C4" d="M210 402c45-18 73 10 119 17 42 7 78 0 126-20-3 53-43 94-105 94-70 0-124-38-140-91z"/><path fill="#0C829B" d="M210 402c39 20 70 30 112 29 44-1 82-15 133-32-13 55-61 94-125 94-58 0-106-33-120-91z"/></g>
+    <g fill="#0C829B" transform="translate(15 155)"><rect x="595" y="430" width="38" height="72"/><rect x="650" y="395" width="38" height="107"/><rect x="705" y="355" width="38" height="147"/></g>
+    </g>
+  </svg>
+  <h1>Crow's Nest</h1>
+  <p>Ship's dashboard and hours of rest</p>
+</header>
+
+<form id="f" novalidate>
+  <div class="fields">
+    <label for="u">Username</label>
+    <input type="text" id="u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+    <label for="p">Password</label>
+    <input type="password" id="p" name="password" autocomplete="current-password" required>
+    <label class="row"><input type="checkbox" id="r" checked> Stay signed in on this device for 30 days</label>
+    <p class="err" id="err" role="alert"></p>
+    <button type="submit" id="go">Sign in</button>
+  </div>
+  <div class="busy" role="status" aria-live="polite">
+    <div class="cn-wave lg" aria-hidden="true"></div>
+    <p id="busyText">Signing in…</p>
+  </div>
+</form>
+<p class="foot">Private system. Access is recorded.</p>
+
+<script>
+(function () {
+  'use strict';
+  var f = document.getElementById('f'), err = document.getElementById('err');
+  var next = new URLSearchParams(location.search).get('next') || '/';
+  if (!/^\/(?!\/)/.test(next) || /^\/login\.html/.test(next)) next = '/';   // only same-site paths
+  function go() { document.getElementById('busyText').textContent = 'Opening Crow’s Nest…'; f.classList.add('signing'); location.replace(next); }
+  // already signed in on this device: straight through
+  fetch('/api/auth/me', { cache: 'no-store' }).then(function (r) { if (r.ok) go(); }).catch(function () {});
+  // brand-new server: say how to create the first account (only possible on the server itself)
+  fetch('/api/auth/status', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d && d.accounts === false) err.innerHTML = 'No accounts yet. On the server run:<br><code style="color:#fff;font-weight:400;font-size:13px">docker exec -it crowsnest-hor node tools/user.js add skipper</code>';
+  }).catch(function () {});
+  document.getElementById('u').focus();
+  f.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var u = document.getElementById('u').value.trim(), p = document.getElementById('p').value;
+    if (!u || !p) { err.textContent = 'Enter your username and password.'; return; }
+    err.textContent = ''; f.classList.add('signing');
+    var t0 = Date.now();
+    try {
+      var r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p, remember: document.getElementById('r').checked }) });
+      var d = {}; try { d = await r.json(); } catch (x) {}
+      if (!r.ok) throw new Error(d.error || ('Sign-in failed (' + r.status + ')'));
+      setTimeout(go, Math.max(0, 450 - (Date.now() - t0)));   // let the wave roll once, then go
+    } catch (x) {
+      f.classList.remove('signing');
+      var m = String(x.message || x);
+      if (/Failed to fetch|Load failed|NetworkError/i.test(m)) m = 'No connection to Crow’s Nest. Check the signal and try again.';
+      err.textContent = m.charAt(0).toUpperCase() + m.slice(1) + (/[.!]$/.test(m) ? '' : '.');
+      document.getElementById('p').select();
+    }
+  });
+})();
+</script>
+</body>
+</html>

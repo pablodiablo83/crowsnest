@@ -3,12 +3,14 @@ const B=process.env.BASE||'http://localhost:8091', SP=process.argv[2]||'.';
 const J={'Content-Type':'application/json'};
 let fails=0; const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c) fails++;};
 (async()=>{
+  const SID=await require('./lib/session')(B);
   const decl={rested:'yes',ackRecords:true,ackEmergency:true,under18:false,declaredBy:'seafarer'};
   const c=await (await fetch(B+'/api/crew',{method:'POST',headers:J,body:JSON.stringify({name:'Pabs'})})).json();
   await fetch(B+`/api/crew/${c.id}/quicklog`,{method:'POST',headers:J,body:JSON.stringify({type:'work',declaration:decl})});
   const ents=async()=> (await (await fetch(B+`/api/crew/${c.id}/entries`)).json());
   const br=await chromium.launch({executablePath:require('fs').existsSync('/opt/pw-browsers/chromium')?'/opt/pw-browsers/chromium':undefined});
   const ctx=await br.newContext({viewport:{width:390,height:844}});
+  await ctx.addCookies([{name:'cn_sid',value:SID,url:B}]);
   const errs=[]; 
   const page=await ctx.newPage(); page.on('pageerror',e=>errs.push('dash: '+e.message));
   await page.goto(B+'/'); await page.waitForSelector('#heroMain',{state:'visible'});

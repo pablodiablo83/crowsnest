@@ -30,6 +30,7 @@ const fake = http.createServer((q, r) => {
 }).listen(8093);
 
 (async () => {
+  const SID = await require('./lib/session')(B);
   // --- inshore: Met Office unreachable and nothing cached yet -> 502, names only, never a fake "no warning"
   inFail = true;
   let ri = await fetch(B + '/api/inshore?lat=55.85&lon=-4.95');
@@ -72,6 +73,7 @@ const fake = http.createServer((q, r) => {
   // --- page
   const br = await chromium.launch({ executablePath: fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined });
   const ctx = await br.newContext({ viewport: { width: 390, height: 844 }, geolocation: { latitude: 55.95, longitude: -4.9 }, permissions: ['geolocation'] });
+  await ctx.addCookies([{ name: 'cn_sid', value: SID, url: B }]);
   await ctx.addInitScript(() => { try { if (!localStorage.getItem('cn_fix')) localStorage.setItem('cn_fix', JSON.stringify({ lat: 55.95, lon: -4.9, ts: Date.now(), source: 'gps' })); } catch (e) {} });
   const errs = [], page = await ctx.newPage();
   page.on('pageerror', e => errs.push(e.message));

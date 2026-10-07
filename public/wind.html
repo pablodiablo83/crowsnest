@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/hor.css?v=3">
+<link rel="stylesheet" href="/wave.css?v=1">
 <style>
 .w-wrap{max-width:560px;margin:0 auto;padding:14px 16px calc(60px + env(safe-area-inset-bottom))}
 @media (min-width:920px){.w-wrap{max-width:1040px}.w-cols{display:grid;grid-template-columns:420px 1fr;gap:14px;align-items:start}}
@@ -173,7 +174,7 @@ select.h-in option{color:#00154C}
         <section class="h-card" aria-labelledby="hHours">
           <div class="h-head"><div><h2 id="hHours">Hour by hour</h2><p class="h-sub" id="hoursSub">Hourly for 2 days, then every 3 hours. Tap a row to see it on the dial.</p></div></div>
           <div class="w-head" aria-hidden="true"><span>Time</span><span></span><span>From</span><span class="c">Wind</span><span class="c">Gust</span><span title="Solid: wind. Faded: gusts.">Strength</span></div>
-          <div class="w-list" id="list" role="list"></div>
+          <div class="w-list" id="list" role="list"><div class="cn-wave lg" role="status" aria-label="Loading"></div></div>
           <div class="w-key" id="key" aria-label="Colour key, knots"></div>
           <p class="w-msg" id="msg" role="status" hidden></p>
           <p class="w-note" id="srcNote">Source: Open-Meteo. Computer model forecasts, not an official marine forecast: read them with the Met Office inshore waters forecast on this page.</p>

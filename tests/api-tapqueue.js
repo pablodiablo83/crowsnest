@@ -3,6 +3,7 @@ const req=async(m,u,b)=>{const r=await fetch(B+u,{method:m,headers:J,body:b?JSON
 let fails=0; const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m); if(!c) fails++;};
 const iso=ms=>new Date(ms).toISOString();
 (async()=>{
+  await require('./lib/session')(B);   // web sign-in (tests/run-all.sh creates the account)
   const decl={rested:'yes',ackRecords:true,ackEmergency:true,under18:false,declaredBy:'seafarer'};
   const c=(await req('POST','/api/crew',{name:'Pabs'})).d;
   const now=Date.now();
@@ -35,7 +36,7 @@ const iso=ms=>new Date(ms).toISOString();
   const es=(await req('GET',`/api/crew/${c.id}/entries`)).d;
   ok(es.length===2&&!es[0].end&&es[0].type==='rest','entries: WORK closed, REST open');
   const au=(await req('GET','/api/entries-audit?limit=50')).d;
-  ok(au.some(a=>a.source==='quicklog-queued'),'audit marks queued taps');
+  ok(au.some(a=>/^quicklog-queued(@|$)/.test(a.source||'')),'audit marks queued taps');
   // voyage ended, then queued REST arrives -> voyage_not_started
   await req('POST',`/api/crew/${c.id}/voyage/end`,{});
   r=await req('POST',`/api/crew/${c.id}/quicklog`,{type:'rest',tapId:'t5',at:iso(Date.now()-60000)});

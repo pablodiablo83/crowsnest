@@ -2,6 +2,7 @@
 // Needs a server on 8091 without INSHORE_URL. Fails if the page can no longer be parsed (layout change).
 const B = process.env.BASE || 'http://localhost:8091';
 (async () => {
+  await require('./lib/session')(B);
   const r = await fetch(`${B}/api/inshore?lat=55.85&lon=-4.95`), d = await r.json();
   const fail = m => { console.log('FAIL ' + m); process.exit(1); };
   if (!r.ok) fail('inshore: ' + (d.detail || d.error));

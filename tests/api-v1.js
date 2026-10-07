@@ -9,6 +9,7 @@ async function req(m, u, b, h) {
 }
 const bearer = t => ({ Authorization: 'Bearer ' + t });
 (async () => {
+  await require('./lib/session')(B);   // web sign-in for the /api (web) calls; /api/v1 uses device tokens
   const decl = { rested: 'yes', ackRecords: true, ackEmergency: true, under18: false, declaredBy: 'seafarer' };
   const pabs = (await req('POST', '/api/crew', { name: 'Pabs' })).d, deck = (await req('POST', '/api/crew', { name: 'Deckhand' })).d;
 

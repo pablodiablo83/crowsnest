@@ -38,6 +38,7 @@ const BRIDGE = `
   })();`;
 
 (async () => {
+  await require('./lib/session')(API);   // the web side (pairing codes) needs a sign-in; the app uses its device token
   const decl = { rested: 'yes', ackRecords: true, ackEmergency: true, under18: false, declaredBy: 'seafarer' };
   const crew = await api('POST', '/api/crew', { name: 'Pabs' });
   const br = await chromium.launch({ executablePath: require('fs').existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined });

@@ -21,7 +21,19 @@
     device: function () { try { return JSON.parse(lsGet('cn_device') || 'null'); } catch (e) { return null; } },
     plug: plug
   };
-  if (!isApp) return;
+  if (!isApp) {   // web: a page whose sign-in has expired goes to the login page (and comes back afterwards)
+    var webFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      return webFetch(input, init).then(function (r) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (r.status === 401 && /^\/api\/(?!v1\/|auth\/login)/.test(url) && !/\/login\.html$/.test(location.pathname)) {
+          location.replace('/login.html?next=' + encodeURIComponent(location.pathname + location.search));
+        }
+        return r;
+      });
+    };
+    return;
+  }
   document.documentElement.classList.add('cn-app');
   // full-screen in the app: keep content clear of the notch / status bar (Safari did this for the web pages)
   var css = document.createElement('style');

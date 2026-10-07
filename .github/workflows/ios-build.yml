@@ -30,9 +30,11 @@ jobs:
           (DATA_DIR="$RUNNER_TEMP/data" PORT=8091 node server.js > "$RUNNER_TEMP/server.log" 2>&1 &)
           for i in $(seq 30); do curl -sf localhost:8091/healthz >/dev/null && break; sleep 1; done
           J='Content-Type: application/json'
-          CREW=$(curl -sf -X POST localhost:8091/api/crew -H "$J" -d '{"name":"Simulator crew"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
-          curl -sf -X POST "localhost:8091/api/crew/$CREW/quicklog" -H "$J" -d '{"type":"work","declaration":{"rested":"yes","ackRecords":true,"ackEmergency":true,"under18":false,"declaredBy":"seafarer"}}' >/dev/null
-          CODE=$(curl -sf -X POST localhost:8091/api/devices/pair-code -H "$J" -d '{"role":"master"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["code"])')
+          echo 'ci-password-12345' | DATA_DIR="$RUNNER_TEMP/data" node tools/user.js add ci master --password-stdin
+          C="$RUNNER_TEMP/cookies"; curl -sf -c "$C" -X POST localhost:8091/api/auth/login -H "$J" -d '{"username":"ci","password":"ci-password-12345"}' >/dev/null
+          CREW=$(curl -sf -b "$C" -X POST localhost:8091/api/crew -H "$J" -d '{"name":"Simulator crew"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+          curl -sf -b "$C" -X POST "localhost:8091/api/crew/$CREW/quicklog" -H "$J" -d '{"type":"work","declaration":{"rested":"yes","ackRecords":true,"ackEmergency":true,"under18":false,"declaredBy":"seafarer"}}' >/dev/null
+          CODE=$(curl -sf -b "$C" -X POST localhost:8091/api/devices/pair-code -H "$J" -d '{"role":"master"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["code"])')
           TOKEN=$(curl -sf -X POST localhost:8091/api/v1/auth/pair -H "$J" -d "{\"code\":\"$CODE\",\"name\":\"CI simulator\"}" | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
           echo "::add-mask::$TOKEN"
           echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
@@ -72,7 +74,7 @@ jobs:
           ok=0
           for i in $(seq 40); do
             sleep 3
-            if curl -sf localhost:8091/api/devices | grep -q '"lastSeen":"'; then ok=1; break; fi
+            if curl -sf -b "$RUNNER_TEMP/cookies" localhost:8091/api/devices | grep -q '"lastSeen":"'; then ok=1; break; fi
           done
           sleep 8
           xcrun simctl io "$DEV" screenshot "$RUNNER_TEMP/shots/sim-dashboard.png"; echo screenshot

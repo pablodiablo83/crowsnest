@@ -6,12 +6,13 @@ iOS app: `app/` = Capacitor 8 shell (Swift Package Manager) bundling `public/`; 
 
 ## Deploy (do this, not paste scripts)
 1. Push to `main`.
-2. Pabs runs `deploy` on the server (alias for `~/crowsnest-hor/deploy.sh | tail -15`): backs up `data/`, fast-forwards, rebuilds, health-checks `/healthz` + `/api/vessel`, auto-rolls back.
-Server is Dell "Blairquhosh"; app on 127.0.0.1:8090 behind Caddy basic-auth and a Cloudflare tunnel (https://app.crows-nest.co.uk). The web has no auth of its own (Caddy basic auth); `/api/v1/*` is for the phone app and requires a device token (server.js checks it; Caddy must let `/api/v1/*` through). `caddy/`, `cloudflared/`, `data/`, `.env` are NOT in git.
+2. Pabs runs `deploy` on the server (alias for `~/crowsnest-hor/deploy.sh | tail -15`): backs up `data/`, fast-forwards, rebuilds, health-checks `/healthz` + `/api/v1/time` (was `/api/vessel` before 7 Oct 2026), auto-rolls back.
+Server is Dell "Blairquhosh"; app on 127.0.0.1:8090 behind Caddy basic-auth and a Cloudflare tunnel (https://app.crows-nest.co.uk). The web has its own sign-in (auth.js: accounts + session cookie, one gate in server.js in front of every page and API route; accounts made only on the server with `docker exec -it crowsnest-hor node tools/user.js add <name>`). Caddy basic auth is still on until Pabs confirms the app sign-in, then comes off. `/api/v1/*` is for the phone app and requires a device token (server.js checks it; Caddy must let `/api/v1/*` through). `caddy/`, `cloudflared/`, `data/`, `.env` are NOT in git.
 
 ## Rules
 - **Always say when something is ready to deploy** (Pabs, 7 Oct 2026). After every push, end the reply with: `Ready to deploy: run deploy, expect DEPLOYED <short sha>` plus what to test live (which page, what to tap, what should happen). If a push changes only docs/tests/CI, say "no deploy needed". If it changes `app/` (or `public/` used by the app), also say the app needs `npm run sync` + rebuild.
 - Never commit secrets, `data/`, or Caddy/cloudflared config.
+- Every new route is behind the sign-in gate automatically; only add to the gate's open list with a reason. tests/api-auth.js checks every route in server.js is closed without a session. Tests sign in via tests/lib/session.js (run-all.sh creates the `tester` account with tools/user.js).
 - Keep replies and server output short: ask Pabs for the last 15 lines only (`2>&1 | tail -15`).
 - Hours of Rest is MCA/STCW: min 10 h rest/24 h, 77 h/7 d. Engine in `engine/` (spec: `engine/SPEC.md`). Voyages are per crew member; the voyage track is vessel-level (positions found by time window).
 - Maritime answers: tag confidence High / Moderate / Low; verify or hedge, never assert without evidence.
@@ -21,7 +22,8 @@ Server is Dell "Blairquhosh"; app on 127.0.0.1:8090 behind Caddy basic-auth and 
 - Offline: only append-style records queue (taps, End voyage, new entries, positions - `public/outbox.js`, idempotent by opId/tapId). Edits/deletes need a connection. Server refuses late items that no longer fit (409) and the phone lists them as not applied.
 
 ## Open items
-- Rotate exposed Nextcloud credential and sudo password; give `skipper` its own password. (Per-phone accounts now exist: pairing + device tokens; the web is still one shared basic-auth login.)
+- Rotate exposed Nextcloud credential and sudo password.
+- Web sign-in rollout (7 Oct 2026): deploy -> Pabs creates `skipper` with tools/user.js -> signs in -> THEN remove Caddy basicauth from the app.crows-nest.co.uk block (keep a backup; validate; reload) -> THEN drop the `GET /api/vessel` exemption from the gate (deploy.sh no longer needs it).
 - iOS app: Apple Developer enrolment; first real-device run on Pabs's Mac (back ~13 Oct 2026); TestFlight secrets. Checklist in docs/IOS-APP.md.
 - Boat-device (NMEA/Signal K) feed to POST /api/positions (could use a crew-role-free device token later); tides setup; AI bar stub; push notifications (rest-budget warning); Android.
 - Confirm voyage 1 starts 28 Sep 2026 00:00 BST (= 2026-09-27T23:00:00Z); curl check handed to Pabs 6 Oct 2026. (Vessel rename dropped by Pabs, 7 Oct 2026: leave the vessel name as it is.)

@@ -619,7 +619,17 @@
       '<label class="h-opt"><input type="radio" name="policy" value="rest"' + (S.policy === 'rest' ? ' checked' : '') + '><span>Count as available rest (recommended)<em>Assumes the seafarer was properly rested when beginning duty. Shown as assumed and kept separate from rest you log.</em></span></label>' +
       '<label class="h-opt"><input type="radio" name="policy" value="unknown"' + (S.policy === 'unknown' ? ' checked' : '') + '><span>Treat as unknown<em>The 24-hour and 7-day checks cannot be confirmed until a full window has been logged.</em></span></label></fieldset></section>' +
       '<details class="h-more"><summary>Limits being applied</summary><div><ul><li>At least 10 hours of rest in any 24 hours.</li><li>Rest in no more than two periods, one at least 6 hours.</li><li>At least 77 hours of rest in any 7 days.</li><li>No more than 14 hours between rest periods.</li><li>A rest under 60 minutes does not count towards the 24-hour split or the 14-hour gap.</li></ul><p style="margin-top:8px">Based on the MLC Hours of Work Regulations 2018. Not yet applied: young persons, night work and authorised exceptions.</p></div></details>' +
-      phonesHtml() + thisPhoneHtml();
+      accountHtml() + phonesHtml() + thisPhoneHtml();
+  }
+  /* the signed-in web account (not shown in the phone app, which signs in with its pairing instead) */
+  function accountHtml() {
+    if ((window.CNNet && window.CNNet.isApp) || !S.me) return '';
+    return '<section class="h-sec"><h3>Account</h3><p class="h-lead">Signed in as <b>' + esc(S.me.username) + '</b>' + (S.me.role === 'crew' ? ' (crew account)' : '') + '.</p>' +
+      '<details class="h-more"><summary>Change password</summary><div><form data-form="password" novalidate>' +
+      '<div class="h-fld"><label for="pwCur">Current password</label><input class="h-in" type="password" id="pwCur" autocomplete="current-password"></div>' +
+      '<div class="h-fld"><label for="pwNew">New password <span class="hint">At least 10 characters. Other devices are signed out.</span></label><input class="h-in" type="password" id="pwNew" autocomplete="new-password"></div>' +
+      '<div class="errbox"></div><div class="h-actions"><button type="submit" class="h-btn primary">Change password</button></div></form></div></details>' +
+      '<div class="h-actions"><button type="button" class="h-btn ghost" data-act="sign-out">Sign out</button></div></section>';
   }
   /* phones paired with the app (master only; a crew phone cannot see this list) */
   function phonesHtml() {
@@ -655,6 +665,7 @@
   }
   function settingsSheet(focus) {
     S.devices = null; S.pair = null;
+    if (!(window.CNNet && window.CNNet.isApp)) api('/api/auth/me').then(function (d) { S.me = d.user; refreshSettings(); }).catch(function () {});
     var s = openSheet('Customise', '<div class="settings-body">' + settingsHtml() + '</div>', { focus: focus ? '#' + focus : null });
     s.isSettings = true;
     loadDevices();
@@ -811,6 +822,7 @@
       case 'tap': tap(el.getAttribute('data-k')); break;
       case 'tapq-dismiss': window.CNTapQ.clearFailed(); break;
       case 'dev-pair': pairPhone(sh); break;
+      case 'sign-out': fetch('/api/auth/logout', { method: 'POST' }).finally(function () { location.replace('/login.html'); }); break;
       case 'dev-remove': removePhone(id); break;
       case 'dev-disconnect': confirmSheet({ title: 'Disconnect this phone?', text: 'Anything still waiting to be sent stays on this phone and goes after you pair it again.', ok: 'Disconnect', danger: true })
         .then(function (ok) { if (ok) window.CNNet.disconnect(); }); break;
@@ -836,6 +848,13 @@
     var f = ev.target.closest('form[data-form]'); if (!f) return;
     ev.preventDefault();
     var kind = f.getAttribute('data-form');
+    if (kind === 'password') {
+      var cur = $('#pwCur', f).value, nw = $('#pwNew', f).value, box = $('.errbox', f);
+      api('/api/auth/password', { method: 'POST', body: { current: cur, next: nw } })
+        .then(function () { box.innerHTML = ''; f.reset(); toast('Password changed. Other devices are signed out.'); })
+        .catch(function (e) { box.innerHTML = '<div class="h-err" role="alert">' + esc(explain(e).text) + '</div>'; });
+      return;
+    }
     if (kind === 'entry') submitEntry(f);
     else if (kind === 'voyage') submitVoyage(f);
     else if (kind === 'crew') submitCrew(f);

@@ -2,6 +2,7 @@
 // reach Open-Meteo). Needs a server on 8091 WITHOUT OPEN_METEO_BASE. Fails only if the default model (UK Met Office) fails.
 const B = process.env.BASE || 'http://localhost:8091', LAT = 55.85, LON = -4.95;   // off Cumbrae
 (async () => {
+  await require('./lib/session')(B);
   const r = await fetch(`${B}/api/wind?lat=${LAT}&lon=${LON}&compare=1`);
   const d = await r.json();
   if (!r.ok) { console.log('FAIL default model', d.model && d.model.id, d.detail || d.error); process.exit(1); }
