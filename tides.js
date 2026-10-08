@@ -146,6 +146,48 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
     res.json({ ok: true });
   });
 
+  // ---- search: gauges and the user's secondary ports by name, and places (geocoded) with their nearest tides
+  // Places come from the Open-Meteo geocoding API (GeoNames data, CC BY 4.0, no key). Results are cached for a day.
+  const GEOCODE = process.env.GEOCODE_BASE || 'https://geocoding-api.open-meteo.com';
+  const geoCache = new Map();
+  const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const inWaters = p => p.latitude >= 48.5 && p.latitude <= 61.5 && p.longitude >= -11.5 && p.longitude <= 3;   // UK, Ireland, Channel
+  async function geocode(q) {
+    const key = norm(q), hit = geoCache.get(key);
+    if (hit && Date.now() - hit.at < DAY) return hit.list;
+    const r = await fetch(`${GEOCODE}/v1/search?name=${encodeURIComponent(q)}&count=20&language=en&format=json`,
+      { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'CrowsNest/1.0 (private marine dashboard)' } });
+    if (!r.ok) throw new Error('place search answered ' + r.status);
+    const list = ((await r.json()).results || []).filter(inWaters);
+    geoCache.set(key, { at: Date.now(), list });
+    if (geoCache.size > 500) geoCache.delete(geoCache.keys().next().value);
+    return list;
+  }
+  app.get('/api/tides/search', async (req, res) => {
+    const q = String(req.query.q || '').trim().slice(0, 60), k = norm(q);
+    if (k.length < 2) return res.json({ q, gauges: [], secondary: [], places: [] });
+    const has = name => norm(name).split(' ').some((w, i, a) => a.slice(i).join(' ').startsWith(k)) || norm(name).includes(k);
+    const gauges = STATIONS.filter(s => has(s.name)).slice(0, 5).map(s => ({ kind: 'std', id: s.code, name: s.name, lat: s.lat, lon: s.lon }));
+    const secs = db.prepare('SELECT * FROM tide_secondary WHERE deleted_at IS NULL').all().map(secView);
+    const secondary = secs.filter(p => has(p.name)).slice(0, 5).map(p => ({ kind: 'sec', id: p.id, name: p.name, std: p.std, stdName: (station(p.std) || {}).name, lat: p.lat, lon: p.lon }));
+    let places = [], placesError = null;
+    if (k.length >= 3) {
+      try {
+        const seen = new Set();
+        places = (await geocode(q)).map(g => {
+          const here = { lat: g.latitude, lon: g.longitude }, n = nearest(here);
+          let ns = null;
+          for (const p of secs) if (p.lat != null && p.lon != null) { const d = nm(here, p); if (d <= 5 && (!ns || d < ns.distanceNm)) ns = { id: p.id, name: p.name, distanceNm: Math.round(d * 10) / 10 }; }
+          return { name: g.name, area: [g.admin2 || g.admin1, g.country_code].filter(Boolean).join(', '), lat: g.latitude, lon: g.longitude,
+            nearest: n && { id: n.code, name: n.name, distanceNm: Math.round(n.distanceNm * 10) / 10 }, secondary: ns };
+        }).filter(p => p.nearest && p.nearest.distanceNm <= 80)
+          .filter(p => { const key = p.name + '|' + p.lat.toFixed(2) + '|' + p.lon.toFixed(2); if (seen.has(key)) return false; seen.add(key); return true; })
+          .slice(0, 6);
+      } catch (e) { placesError = 'place search unavailable (' + String(e.message || e) + ')'; }
+    }
+    res.json({ q, gauges, secondary, places, placesError, attribution: places.length ? 'Places: GeoNames via Open-Meteo (CC BY 4.0)' : undefined });
+  });
+
   // ---- ports near a position
   app.get('/api/tides/stations', (req, res) => {
     const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon), here = Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;

@@ -30,7 +30,7 @@ if [ "${1:-}" != "--no-browser" ]; then
   fresh && run pw-tapqueue node tests/pw-tapqueue.js "$TMP"
   fresh APP_ORIGINS=http://localhost:8092 && run pw-app node tests/pw-app.js "$TMP"
   fresh OPEN_METEO_BASE=http://127.0.0.1:8093 INSHORE_URL=http://127.0.0.1:8093/inshore INSHORE_MIN_AREAS=3 && run pw-wind node tests/pw-wind.js "$TMP"
-  fresh IOC_BASE=http://127.0.0.1:8094 NO_TIDE_WARMUP=1 && run pw-tides node tests/pw-tides.js "$TMP"
+  fresh IOC_BASE=http://127.0.0.1:8094 GEOCODE_BASE=http://127.0.0.1:8094 NO_TIDE_WARMUP=1 && run pw-tides node tests/pw-tides.js "$TMP"
   fresh IOC_BASE=http://127.0.0.1:8095 OPEN_METEO_BASE=http://127.0.0.1:8095 INSHORE_URL=http://127.0.0.1:8095/inshore INSHORE_MIN_AREAS=3 NO_TIDE_WARMUP=1 && run pw-passage node tests/pw-passage.js "$TMP"
 fi
 exit $fail

@@ -20,27 +20,53 @@
 .t-place{color:var(--muted);font-size:14px;margin-top:2px}
 select.h-in{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,#fff 50%),linear-gradient(135deg,#fff 50%,transparent 50%);background-position:calc(100% - 22px) 22px,calc(100% - 16px) 22px;background-size:6px 6px;background-repeat:no-repeat;padding-right:40px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
 select.h-in option,select.h-in optgroup{color:#00154C}
-.t-port{display:flex;flex-direction:column;gap:6px}
-.t-port label{font-size:14px;font-weight:700}
+/* search: one field, results drop down under it */
+.t-search{position:relative}
+.t-slab{display:block;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-bottom:6px}
+.t-sbox{display:flex;align-items:center;gap:8px;min-height:50px;padding:0 6px 0 14px;border-radius:14px;border:1px solid var(--line-2);background:rgba(255,255,255,.08)}
+.t-sbox:focus-within{border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,176,65,.25)}
+.t-sico{flex:none;color:var(--amber)}
+.t-sbox input{flex:1;min-width:0;height:48px;border:0;background:transparent;color:#fff;font:inherit;font-size:17px;font-weight:700;outline:none;-webkit-appearance:none;appearance:none}
+.t-sbox input::placeholder{color:var(--muted);font-weight:400}
+.t-sbox input::-webkit-search-cancel-button{-webkit-appearance:none}
+.t-shere{flex:none;width:40px;height:40px;border-radius:11px;border:0;background:transparent;color:var(--cyan-l);display:grid;place-items:center}
+.t-shere:active{background:var(--panel-2)}
+.t-sfield{position:relative}
+.t-res{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:20;margin:0;padding:6px;list-style:none;background:#0B2266;border:1px solid var(--line-2);border-radius:14px;box-shadow:0 18px 40px rgba(0,0,0,.5);max-height:60vh;overflow-y:auto}
+.t-res li{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;cursor:pointer;min-height:48px}
+.t-res li[aria-selected=true],.t-res li:hover{background:rgba(245,176,65,.14)}
+.t-res .ic{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(255,255,255,.08);color:var(--cyan-l)}
+.t-res .ic.place{color:var(--amber);background:rgba(245,176,65,.14)}
+.t-res .ic.sec{color:#fff;background:var(--cyan-d)}
+.t-res b{display:block;font-size:16px}
+.t-res span{display:block;font-size:13px;color:var(--muted)}
+.t-res .hd{min-height:0;padding:8px 10px 4px;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);cursor:default;background:none!important}
+.t-res .msg{color:var(--muted);font-size:14px;cursor:default;background:none!important}
+.t-from{margin:8px 0 0;font-size:14px;color:var(--muted)}
+.t-from b{color:#fff}
+.t-from .warn{display:block;color:var(--amber-l);margin-top:4px}
+.t-from button{background:none;border:0;padding:0;color:var(--amber);font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 /* now */
 .t-now{display:flex;align-items:center;gap:16px}
 .t-big{font-size:46px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
 .t-big small{font-size:18px;color:var(--muted);font-weight:700;margin-left:4px}
-.t-dir{font-size:15px;font-weight:900;color:var(--cyan-l)}
+.t-dir{font-size:15px;font-weight:900;color:var(--amber)}
 .t-next{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .t-ev{border:1px solid var(--line);border-radius:14px;padding:8px 10px}
+.t-ev.hw{border-color:rgba(245,176,65,.55);background:rgba(245,176,65,.08)}
+.t-ev.hw .k{color:var(--amber)}
 .t-ev .k{font-size:12px;color:var(--muted);font-weight:700}
 .t-ev .v{font-size:20px;font-weight:900;font-variant-numeric:tabular-nums}
 .t-ev .s{font-size:12px;color:var(--muted)}
 .t-sn{margin-top:12px}
 .t-sn .bar{height:10px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden}
-.t-sn .bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#7FD3E6,#28A7C4)}
+.t-sn .bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#28A7C4,#F5B041)}
 .t-sn .lab{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-top:4px}
 .t-sn .lab b{color:#fff}
 /* chart */
 .t-days{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-top:8px;scrollbar-width:none}
 .t-days button{flex:none;min-height:40px;padding:0 12px;border-radius:12px;border:1px solid var(--line-2);background:var(--panel);font-weight:700;font-size:14px}
-.t-days button[aria-pressed=true]{background:var(--cyan-d);border-color:var(--cyan-l)}
+.t-days button[aria-pressed=true]{background:var(--amber);border-color:var(--amber);color:#00154C}
 .t-chart{width:100%;height:230px;display:block;margin-top:10px;touch-action:pan-y;user-select:none;-webkit-user-select:none}
 .t-chart .grid{stroke:rgba(255,255,255,.1);stroke-width:1}
 .t-chart .ax{fill:rgba(255,255,255,.6);font-size:11px;font-weight:700}
@@ -48,20 +74,25 @@ select.h-in option,select.h-in optgroup{color:#00154C}
 .t-chart .refl{fill:rgba(255,255,255,.55);font-size:10px;font-weight:700}
 .t-chart .curve{fill:none;stroke:#7FD3E6;stroke-width:3;stroke-linejoin:round}
 .t-chart .area{fill:url(#tg)}
+.t-chart .ext.hw{fill:var(--amber)}
+.t-chart .exd{fill:var(--cyan-l)}
+.t-chart .exd.hw{fill:var(--amber)}
 .t-chart .ext{fill:#fff;font-size:11px;font-weight:900;text-anchor:middle;paint-order:stroke;stroke:#00154C;stroke-width:3px}
 .t-chart .nowl{stroke:var(--amber);stroke-width:2}
 .t-chart .sel{stroke:#fff;stroke-width:1.5;stroke-dasharray:3 3}
-.t-chart .seld{fill:#fff;stroke:#00154C;stroke-width:2}
+.t-chart .seld{fill:var(--amber);stroke:#00154C;stroke-width:2.5}
 .t-read{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;font-variant-numeric:tabular-nums}
-.t-read b{font-size:22px}
+.t-read{gap:10px}
+.t-read b{font-size:22px;color:var(--amber);white-space:nowrap}
+.t-read span{text-align:right}
 .t-read span{color:var(--muted);font-size:14px}
-.t-slide input{width:100%;accent-color:var(--cyan)}
+.t-slide input{width:100%;accent-color:var(--amber)}
 /* table */
 .t-tab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .t-tab th{font-size:12px;color:var(--muted);text-align:left;padding:6px 6px;border-bottom:1px solid var(--line)}
 .t-tab td{padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.07);font-size:16px}
-.t-tab tr.day td{background:#0B2A6B;font-weight:900;font-size:14px;padding:8px 10px}
-.t-tab .hw{font-weight:900}
+.t-tab tr.day td{background:#0B2A6B;font-weight:900;font-size:14px;padding:8px 10px;box-shadow:inset 4px 0 0 var(--amber)}
+.t-tab .hw{font-weight:900;color:var(--amber)}
 .t-tab .det{color:var(--muted);font-size:12px;display:block}
 .t-tab tr.past td{opacity:.45}
 /* secondary form */
@@ -75,6 +106,9 @@ select.h-in option,select.h-in optgroup{color:#00154C}
 .t-note{color:var(--muted);font-size:13px;margin-top:10px}
 .t-msg{color:var(--amber-l);font-size:14px;margin-top:8px}
 .t-wait{text-align:center;padding:10px 0}
+.t-print{color:var(--amber);border-color:rgba(245,176,65,.6)}
+.h-card h2{position:relative}
+.h-card h2::after{content:"";display:block;width:28px;height:3px;border-radius:2px;background:var(--amber);margin-top:6px}
 </style>
 <script src="/net.js?v=1"></script>
 </head>
@@ -85,14 +119,25 @@ select.h-in option,select.h-in optgroup{color:#00154C}
     <a class="h-back" href="/" aria-label="Back to dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Dashboard</a>
     <div class="h-title">
       <h1>Tides</h1>
-      <p class="t-place" id="place">Finding the nearest port…</p>
+      <p class="t-place" id="place">Tide predictions</p>
     </div>
   </header>
   <main id="main" class="t-body" tabindex="-1">
     <div class="t-cols">
       <div>
         <section class="h-card" aria-labelledby="hNow">
-          <div class="t-port"><label for="portSel" id="hNow">Port</label><select id="portSel" class="h-in"></select></div>
+          <div class="t-search" id="search">
+            <label for="q" id="hNow" class="t-slab">Tides for</label>
+            <div class="t-sfield">
+            <div class="t-sbox">
+              <svg class="t-sico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+              <input id="q" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Search a place or port, e.g. Fowey" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="qList">
+              <button type="button" id="qHere" class="t-shere" aria-label="Tides nearest my position" title="Nearest to me"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+            </div>
+            <ul class="t-res" id="qList" role="listbox" aria-label="Places and ports" hidden></ul>
+            </div>
+            <p class="t-from" id="from" aria-live="polite"></p>
+          </div>
           <div id="nowBox" aria-live="polite"><div class="t-wait"><div class="cn-wave lg" role="status" aria-label="Loading"></div></div></div>
         </section>
         <section class="h-card" aria-labelledby="hCurve">
@@ -105,7 +150,7 @@ select.h-in option,select.h-in optgroup{color:#00154C}
       </div>
       <div>
         <section class="h-card" aria-labelledby="hTable">
-          <div class="h-head"><div><h2 id="hTable">High and low waters</h2><p class="h-sub" id="tableSub">Next 7 days, your local time.</p></div><a class="h-link" href="/passage.html?inc=twi" id="printLink">Print / PDF</a></div>
+          <div class="h-head"><div><h2 id="hTable">High and low waters</h2><p class="h-sub" id="tableSub">Next 7 days, your local time.</p></div><a class="h-link t-print" href="/passage.html?inc=twi" id="printLink">Print / PDF</a></div>
           <table class="t-tab" id="table"></table>
         </section>
         <section class="h-card" aria-labelledby="hSec">
@@ -144,6 +189,6 @@ select.h-in option,select.h-in optgroup{color:#00154C}
   </main>
 </div>
 <div class="h-toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastUndo" style="display:none">Undo</button></div>
-<script src="/tide-page.js?v=2"></script>
+<script src="/tide-page.js?v=3"></script>
 </body>
 </html>
