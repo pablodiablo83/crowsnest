@@ -106,6 +106,13 @@ select.h-in option,select.h-in optgroup{color:#00154C}
 .t-note{color:var(--muted);font-size:13px;margin-top:10px}
 .t-msg{color:var(--amber-l);font-size:14px;margin-top:8px}
 .t-wait{text-align:center;padding:10px 0}
+.t-uk{border:1px solid rgba(245,176,65,.45);background:rgba(245,176,65,.07);border-radius:14px;padding:12px;margin-bottom:12px}
+.t-uk b{display:block;color:var(--amber)}
+.t-uk p{margin:4px 0 0;font-size:14px;color:var(--muted)}
+.t-uk form{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:10px}
+.t-uk .row{display:flex;gap:8px}.t-uk .row>*{min-width:0}
+.t-uk .ok{color:#9BE7B0}
+.t-uk .err{color:var(--coral);font-size:14px;margin-top:6px}
 .t-print{color:var(--amber);border-color:rgba(245,176,65,.6)}
 .h-card h2{position:relative}
 .h-card h2::after{content:"";display:block;width:28px;height:3px;border-radius:2px;background:var(--amber);margin-top:6px}
@@ -155,6 +162,7 @@ select.h-in option,select.h-in optgroup{color:#00154C}
         </section>
         <section class="h-card" aria-labelledby="hSec">
           <div class="h-head"><div><h2 id="hSec">Secondary ports</h2><p class="h-sub">Enter a port's differences once from your almanac (Reeds or Admiralty Tide Tables). Crow's Nest then predicts it by the Admiralty method.</p></div></div>
+          <div class="t-uk" id="ukhoBox" aria-live="polite"></div>
           <ul class="t-sec" id="secList"></ul>
           <div class="h-actions"><button type="button" class="h-btn ghost" id="secAdd">+ Add a secondary port</button></div>
           <form id="secForm" hidden novalidate>
@@ -189,6 +197,6 @@ select.h-in option,select.h-in optgroup{color:#00154C}
   </main>
 </div>
 <div class="h-toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastUndo" style="display:none">Undo</button></div>
-<script src="/tide-page.js?v=3"></script>
+<script src="/tide-page.js?v=4"></script>
 </body>
 </html>

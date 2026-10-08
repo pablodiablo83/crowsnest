@@ -34,11 +34,11 @@
     return null;
   }
   function portName(id) {
-    var p = S.ports.secondary.find(function (x) { return 'sec:' + x.id === id; }) || S.ports.standard.find(function (x) { return x.id === id; });
+    var p = S.ports.secondary.find(function (x) { return 'sec:' + x.id === id; }) || (S.ports.ukho || []).find(function (x) { return 'ukho:' + x.id === id; }) || S.ports.standard.find(function (x) { return x.id === id; });
     return p ? p.name : id;
   }
   function portPos(id) {
-    var sec = S.ports.secondary.find(function (x) { return 'sec:' + x.id === id; });
+    var sec = S.ports.secondary.find(function (x) { return 'sec:' + x.id === id; }) || (S.ports.ukho || []).find(function (x) { return 'ukho:' + x.id === id; });
     if (sec && sec.lat != null && sec.lon != null) return { lat: +sec.lat, lon: +sec.lon };
     var st = S.ports.standard.find(function (x) { return x.id === (sec ? sec.std : id); });
     return st ? { lat: st.lat, lon: st.lon } : null;
@@ -47,6 +47,11 @@
     var sec = S.ports.secondary, std = S.ports.standard;
     var dist = function (p) { return p.distanceNm != null ? ' · ' + Math.round(p.distanceNm) + ' nm' : ''; };
     return (sec.length ? '<optgroup label="Your secondary ports">' + sec.map(function (p) { return '<option value="sec:' + esc(p.id) + '">' + esc(p.name) + dist(p) + '</option>'; }).join('') + '</optgroup>' : '') +
+      (function () {   // UKHO stations: the nearest 25 (and any already chosen)
+        var want = (Q.get('p') || lsGet('cn_tidePort') || '').split(',');
+        var uk = (S.ports.ukho || []).filter(function (p, i) { return i < 25 || want.indexOf('ukho:' + p.id) >= 0; });
+        return uk.length ? '<optgroup label="UKHO stations (ADMIRALTY)">' + uk.map(function (p) { return '<option value="ukho:' + esc(p.id) + '">' + esc(p.name) + dist(p) + '</option>'; }).join('') + '</optgroup>' : '';
+      })() +
       '<optgroup label="Standard ports (tide gauges)">' + std.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + dist(p) + '</option>'; }).join('') + '</optgroup>';
   }
   function addPortRow(val) {
@@ -123,7 +128,7 @@
     parts.push('<p class="note"><b>Planning aid, not an official publication.</b> Tides are astronomical predictions from tide-gauge records: wind and pressure can change heights by 0.3 m or more and shift times. ' +
       'Wind is computer model output. Check the Admiralty Tide Tables or your almanac, and the latest Met Office forecasts (VHF, Navtex), before and during the passage.</p>');
     parts.push(B.footer('Third-party material remains its owners’ copyright: inshore waters forecast © Crown copyright, Met Office; wind data from Open-Meteo.com (CC BY 4.0) and the national weather services whose models it serves; ' +
-      'tide-gauge data from the UK National Tide Gauge Network via the IOC Sea Level Station Monitoring Facility; secondary port differences from your own almanac, © its publisher.', now));
+      'tide-gauge data from the UK National Tide Gauge Network via the IOC Sea Level Station Monitoring Facility; UKHO tidal predictions © Crown copyright, UK Hydrographic Office (ADMIRALTY UK Tidal API), where shown; secondary port differences from your own almanac, © its publisher.', now));
     if (my !== gen) return;
     $('doc').innerHTML = parts.join('');
     $('status').textContent = 'Ready. This is what will print.'; ready = true;
@@ -142,12 +147,13 @@
       await sleep(4000);
     }
     if (!r || r.status === 202) return head + '<p class="msg">Still analysing this port’s gauge data: try again in a minute.</p></section>';
-    var d = r.d, L = d.levels, cur = d.curve.filter(function (p) { return p[0] < end; });
+    var d = r.d, L = d.levels || {}, cur = d.curve.filter(function (p) { return p[0] < end; });
     var hs = cur.map(function (p) { return p[1]; });
     var step = Math.max.apply(null, hs) - Math.min(0, Math.min.apply(null, hs)) > 6 ? 1 : 0.5;
     var lo = Math.floor(Math.min(0, Math.min.apply(null, hs)) / step) * step, hi = Math.ceil((Math.max.apply(null, hs) + 0.1) / step) * step;
     var sub = (d.port.kind === 'sec' ? 'Secondary port on ' + esc(d.port.std.name) + ' (Admiralty method, your almanac differences' + (d.secondary.notes ? ': ' + esc(d.secondary.notes) : '') + '). ' : '') +
-      'Heights in metres ' + esc(d.datum.label) + '. MHWS ' + m1(L.MHWS) + ' · MHWN ' + m1(L.MHWN) + ' · MLWN ' + m1(L.MLWN) + ' · MLWS ' + m1(L.MLWS) + (L.HAT != null ? ' · HAT ' + m1(L.HAT) : '') + '.';
+      (d.port.kind === 'ukho' ? 'UK Hydrographic Office predictions (ADMIRALTY UK Tidal API); curve between them drawn by Crow’s Nest, shape approximate. ' : '') +
+      'Heights in metres ' + esc(d.datum.label) + '.' + (d.levels ? ' MHWS ' + m1(L.MHWS) + ' · MHWN ' + m1(L.MHWN) + ' · MLWN ' + m1(L.MLWN) + ' · MLWS ' + m1(L.MLWS) + (L.HAT != null ? ' · HAT ' + m1(L.HAT) : '') + '.' : '');
     var html = head + '<p class="meta">' + sub + '</p>';
     for (var t0 = o.start; t0 < end; t0 = addDays(t0, 1)) {
       var t1 = addDays(t0, 1);
@@ -155,7 +161,7 @@
       var ex = d.extremes.filter(function (e) { return e.t >= t0 && e.t < t1; });
       var hw = ex.filter(function (e) { return e.type === 'HW'; }), lw = ex.filter(function (e) { return e.type === 'LW'; });
       var range = hw.length && lw.length ? Math.max.apply(null, hw.map(function (e) { return e.h; })) - Math.min.apply(null, lw.map(function (e) { return e.h; })) : null;
-      var sn = range != null && L.MHWS - L.MLWS > 0 ? Math.round(range / (L.MHWS - L.MLWS) * 100) : null;
+      var sn = range != null && d.levels && L.MHWS - L.MLWS > 0 ? Math.round(range / (L.MHWS - L.MLWS) * 100) : null;
       html += '<div class="day"><div class="dayh"><h3>' + esc(dayLong(t0)) + '</h3><span>' + (range != null ? 'Range ' + m1(range) + ' m' + (sn != null ? ' · ' + sn + '% of springs' + (sn >= 85 ? ' (springs)' : sn <= 55 ? ' (neaps)' : '') : '') : '') + '</span></div>';
       html += tideSvg(pts, ex, t0, t1, lo, hi, step);
       html += '<table class="ext"><tr>' + ex.map(function (e) {
@@ -171,7 +177,7 @@
       }
       html += '</table></div>';
     }
-    html += '<p class="note">Predicted from ' + (d.quality ? d.quality.days + ' days of the ' + esc(d.port.kind === 'sec' ? d.port.std.name : d.port.name) + ' tide-gauge record (UK National Tide Gauge Network via the IOC), analysed ' + esc(new Date(d.quality.analysedAt).toLocaleDateString('en-GB')) + '. ' : '') + esc(d.datum.note) + '</p>';
+    html += '<p class="note">' + (d.quality ? 'Predicted from ' + d.quality.days + ' days of the ' + esc(d.port.kind === 'sec' ? d.port.std.name : d.port.name) + ' tide-gauge record (UK National Tide Gauge Network via the IOC), analysed ' + esc(new Date(d.quality.analysedAt).toLocaleDateString('en-GB')) + '. ' : '') + esc(d.datum.note) + (d.attribution ? ' ' + esc(d.attribution) : '') + '</p>';
     return html + '</section>';
   }
   function heightAt(c, t) {

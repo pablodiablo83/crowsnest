@@ -132,7 +132,8 @@
       var d = null; try { d = await r.clone().json(); } catch (e) {}
       if (d && d.code === 'unauthorised') { CNNet.disconnect(); }
     }
-    if (method === 'GET' && r.ok && /json/.test(r.headers.get('Content-Type') || '')) {
+    // no-store: data the server may not let us keep (e.g. UKHO free-tier predictions) is never cached on the phone
+    if (method === 'GET' && r.ok && /json/.test(r.headers.get('Content-Type') || '') && !/no-store/i.test(r.headers.get('Cache-Control') || '')) {
       try { cachePut(url, await r.clone().text()); } catch (e) {}
     }
     return r;

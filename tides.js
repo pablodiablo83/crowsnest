@@ -10,7 +10,7 @@ const STATIONS = require('./tide-stations.js');
 const IOC = process.env.IOC_BASE || 'https://www.ioc-sealevelmonitoring.org';
 const DAY = 86400000;
 
-module.exports = function tides(app, { db, auditRaw, getSetting }) {
+module.exports = function tides(app, { db, auditRaw, getSetting, setSetting }) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS tide_stations (
       code TEXT PRIMARY KEY, analysed_at TEXT, data_from TEXT, data_to TEXT, n INTEGER, rms REAL, z0 REAL,
@@ -146,6 +146,104 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
     res.json({ ok: true });
   });
 
+  // ---- UKHO ADMIRALTY UK Tidal API (optional): authoritative HW/LW for ~600 UK standard and secondary stations.
+  // The subscription key is the user's own (settings 'ukhoKey', or UKHO_KEY in the environment) and never leaves the
+  // server. Tier decides storage: 'discovery' (free) may NOT be cached or stored in any form (UKHO FAQ), so its
+  // predictions are fetched for each request and sent with Cache-Control: no-store (the app then keeps no copy);
+  // 'foundation'/'premium' (paid) may be cached: kept 6 h on the server and cached by the app for use offline.
+  const UKHO_BASE = process.env.UKHO_BASE || 'https://admiraltyapi.azure-api.net/uktidalapi/api/V1';
+  const UKHO_DAYS = { discovery: 7, foundation: 14, premium: 14 };
+  const ukhoConf = () => {
+    const key = process.env.UKHO_KEY || (getSetting && getSetting('ukhoKey', '')) || '';
+    const tier = process.env.UKHO_TIER || (getSetting && getSetting('ukhoTier', 'discovery')) || 'discovery';
+    return key ? { key, tier: UKHO_DAYS[tier] ? tier : 'discovery' } : null;
+  };
+  const ukhoMayStore = c => !!c && c.tier !== 'discovery';
+  const UKHO_CREDIT = 'Contains ADMIRALTY® tidal predictions, © Crown copyright, UK Hydrographic Office (UK Tidal API).';
+  async function ukhoGet(path, key) {
+    const r = await fetch(UKHO_BASE + path, { signal: AbortSignal.timeout(10000), headers: { 'Ocp-Apim-Subscription-Key': key, 'Accept': 'application/json' } });
+    if (r.status === 401 || r.status === 403) throw Object.assign(new Error('UKHO refused the subscription key'), { status: 401 });
+    if (r.status === 429) throw Object.assign(new Error('UKHO call limit reached for now'), { status: 429 });
+    if (!r.ok) throw new Error('UKHO answered ' + r.status);
+    return r.json();
+  }
+  let ukhoIndex = { at: 0, list: [], key: '' };   // station names and positions (not predictions), refreshed daily
+  async function ukhoStations(conf, force) {
+    if (!force && ukhoIndex.key === conf.key && Date.now() - ukhoIndex.at < DAY && ukhoIndex.list.length) return ukhoIndex.list;
+    const d = await ukhoGet('/Stations', conf.key);
+    const feats = Array.isArray(d) ? d : (d && d.features) || [];
+    const list = feats.map(f => {
+      const pr = f.properties || f, g = f.geometry && f.geometry.coordinates;
+      const lat = g ? +g[1] : +(pr.Latitude ?? pr.lat), lon = g ? +g[0] : +(pr.Longitude ?? pr.lon);
+      return { id: String(pr.Id ?? pr.id ?? ''), name: String(pr.Name ?? pr.name ?? '').trim(), country: pr.Country || '', lat, lon };
+    }).filter(s => s.id && s.name && Number.isFinite(s.lat) && Number.isFinite(s.lon));
+    if (!list.length) throw new Error('UKHO station list was empty');
+    ukhoIndex = { at: Date.now(), list, key: conf.key };
+    return list;
+  }
+  const ukhoKnown = () => { const c = ukhoConf(); return c && ukhoIndex.key === c.key ? ukhoIndex.list : []; };
+  const ukhoCache = new Map();   // paid tiers only: id -> { at, events }
+  async function ukhoEvents(conf, id) {
+    const hit = ukhoMayStore(conf) && ukhoCache.get(id);
+    if (hit && Date.now() - hit.at < 6 * 3600000) return hit.events;
+    const d = await ukhoGet('/Stations/' + encodeURIComponent(id) + '/TidalEvents?duration=' + UKHO_DAYS[conf.tier], conf.key);
+    const events = (Array.isArray(d) ? d : []).map(e => {
+      const iso = String(e.DateTime || e.dateTime || ''), t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + 'Z');   // UKHO times are UTC
+      const type = /high/i.test(e.EventType || e.eventType || '') ? 'HW' : /low/i.test(e.EventType || e.eventType || '') ? 'LW' : null;
+      return { t, h: e.Height == null ? null : Math.round(+e.Height * 100) / 100, type, approxTime: !!e.IsApproximateTime, approxHeight: !!e.IsApproximateHeight };
+    }).filter(e => Number.isFinite(e.t) && e.type).sort((a, b) => a.t - b.t);
+    if (ukhoMayStore(conf)) { ukhoCache.set(id, { at: Date.now(), events }); if (ukhoCache.size > 200) ukhoCache.delete(ukhoCache.keys().next().value); }
+    return events;
+  }
+  // curve between UKHO's high and low waters: cosine interpolation (shape approximate; the times and heights are UKHO's)
+  function cosineCurve(ev, from, to, step) {
+    const out = [], h = ev.filter(e => e.h != null);
+    for (let i = 1; i < h.length; i++) {
+      const a = h[i - 1], b = h[i];
+      for (let t = Math.ceil(a.t / step) * step; t < b.t; t += step) if (t >= from && t <= to) out.push([t, Math.round(((a.h + b.h) / 2 + (a.h - b.h) / 2 * Math.cos(Math.PI * (t - a.t) / (b.t - a.t))) * 1000) / 1000]);
+    }
+    return out;
+  }
+  async function predictUkho(id, from, to) {
+    const conf = ukhoConf();
+    if (!conf) return { status: 404, body: { error: 'UKHO tidal data is not connected (Tides page > UKHO tidal data)' } };
+    let list; try { list = await ukhoStations(conf); } catch (e) { return { status: 502, body: { error: String(e.message || e) } }; }
+    const st = list.find(s => s.id === id);
+    if (!st) return { status: 404, body: { error: 'unknown UKHO station' } };
+    let ev; try { ev = await ukhoEvents(conf, id); } catch (e) { return { status: 502, body: { error: String(e.message || e) } }; }
+    const curve = cosineCurve(ev, from, to, 10 * 60000);
+    return { status: 200, noStore: !ukhoMayStore(conf), body: {
+      source: UKHO_CREDIT, attribution: UKHO_CREDIT, provider: 'ukho', tier: conf.tier,
+      port: { kind: 'ukho', id: st.id, name: st.name, lat: st.lat, lon: st.lon },
+      datum: { code: 'CD', label: 'above Chart Datum', note: 'UKHO predictions are heights above Chart Datum. The curve between high and low waters is drawn by Crow’s Nest (shape approximate).' },
+      levels: null, quality: null, coverageTo: ev.length ? ev[ev.length - 1].t : null,
+      extremes: ev.filter(e => e.t >= from && e.t <= to), curve } };
+  }
+  const predictAny = (port, from, to) => /^ukho:/.test(port) ? predictUkho(port.slice(5), from, to) : Promise.resolve(predictPort(port, from, to));
+
+  // connect / disconnect (master only: crew accounts and phones cannot change settings) and status
+  app.get('/api/tides/ukho', async (req, res) => {
+    const c = ukhoConf();
+    if (!c) return res.json({ connected: false });
+    let n = null, error = null; try { n = (await ukhoStations(c)).length; } catch (e) { error = String(e.message || e); }
+    res.json({ connected: true, tier: c.tier, days: UKHO_DAYS[c.tier], stations: n, error, fromEnv: !!process.env.UKHO_KEY, mayStore: ukhoMayStore(c) });
+  });
+  app.put('/api/tides/ukho', async (req, res) => {
+    const key = String((req.body || {}).key || '').trim(), tier = String((req.body || {}).tier || 'discovery');
+    if (!/^[A-Za-z0-9]{16,64}$/.test(key)) return res.status(400).json({ error: 'that does not look like a subscription key (letters and numbers, from the ADMIRALTY developer portal)' });
+    if (!UKHO_DAYS[tier]) return res.status(400).json({ error: 'tier must be discovery, foundation or premium' });
+    let n; try { n = (await ukhoStations({ key, tier }, true)).length; }
+    catch (e) { return res.status(400).json({ error: String(e.message || e) }); }
+    setSetting('ukhoKey', key); setSetting('ukhoTier', tier); ukhoCache.clear();
+    auditRaw('ukho-connect', 'tides:ukho', null, null, { tier, stations: n }, req.get('X-Source') || 'api');   // never the key
+    res.json({ connected: true, tier, stations: n });
+  });
+  app.delete('/api/tides/ukho', (req, res) => {
+    setSetting('ukhoKey', ''); ukhoIndex = { at: 0, list: [], key: '' }; ukhoCache.clear();
+    auditRaw('ukho-disconnect', 'tides:ukho', null, null, null, req.get('X-Source') || 'api');
+    res.json({ connected: false });
+  });
+
   // ---- search: gauges and the user's secondary ports by name, and places (geocoded) with their nearest tides
   // Places come from the Open-Meteo geocoding API (GeoNames data, CC BY 4.0, no key). Results are cached for a day.
   const GEOCODE = process.env.GEOCODE_BASE || 'https://geocoding-api.open-meteo.com';
@@ -170,6 +268,8 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
     const gauges = STATIONS.filter(s => has(s.name)).slice(0, 5).map(s => ({ kind: 'std', id: s.code, name: s.name, lat: s.lat, lon: s.lon }));
     const secs = db.prepare('SELECT * FROM tide_secondary WHERE deleted_at IS NULL').all().map(secView);
     const secondary = secs.filter(p => has(p.name)).slice(0, 5).map(p => ({ kind: 'sec', id: p.id, name: p.name, std: p.std, stdName: (station(p.std) || {}).name, lat: p.lat, lon: p.lon }));
+    const uk = ukhoConf() ? await ukhoStations(ukhoConf()).catch(() => []) : [];
+    const ukho = uk.filter(u => has(u.name)).slice(0, 6).map(u => ({ kind: 'ukho', id: u.id, name: u.name, lat: u.lat, lon: u.lon }));
     let places = [], placesError = null;
     if (k.length >= 3) {
       try {
@@ -178,14 +278,16 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
           const here = { lat: g.latitude, lon: g.longitude }, n = nearest(here);
           let ns = null;
           for (const p of secs) if (p.lat != null && p.lon != null) { const d = nm(here, p); if (d <= 5 && (!ns || d < ns.distanceNm)) ns = { id: p.id, name: p.name, distanceNm: Math.round(d * 10) / 10 }; }
+          let nu = null;
+          for (const u of uk) { const d = nm(here, u); if (d <= 3 && (!nu || d < nu.distanceNm)) nu = { id: u.id, name: u.name, distanceNm: Math.round(d * 10) / 10 }; }
           return { name: g.name, area: [g.admin2 || g.admin1, g.country_code].filter(Boolean).join(', '), lat: g.latitude, lon: g.longitude,
-            nearest: n && { id: n.code, name: n.name, distanceNm: Math.round(n.distanceNm * 10) / 10 }, secondary: ns };
+            nearest: n && { id: n.code, name: n.name, distanceNm: Math.round(n.distanceNm * 10) / 10 }, secondary: ns, ukho: nu };
         }).filter(p => p.nearest && p.nearest.distanceNm <= 80)
           .filter(p => { const key = p.name + '|' + p.lat.toFixed(2) + '|' + p.lon.toFixed(2); if (seen.has(key)) return false; seen.add(key); return true; })
           .slice(0, 6);
       } catch (e) { placesError = 'place search unavailable (' + String(e.message || e) + ')'; }
     }
-    res.json({ q, gauges, secondary, places, placesError, attribution: places.length ? 'Places: GeoNames via Open-Meteo (CC BY 4.0)' : undefined });
+    res.json({ q, gauges, secondary, ukho, places, placesError, attribution: places.length ? 'Places: GeoNames via Open-Meteo (CC BY 4.0)' : undefined });
   });
 
   // ---- ports near a position
@@ -199,8 +301,10 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
       const ref = p.lat != null && p.lon != null ? p : station(p.std);
       return { kind: 'sec', id: p.id, name: p.name, std: p.std, stdName: (station(p.std) || {}).name, lat: p.lat, lon: p.lon, distanceNm: here && ref ? Math.round(nm(here, ref) * 10) / 10 : null };
     });
+    const ukho = ukhoKnown().map(u => ({ kind: 'ukho', id: u.id, name: u.name, lat: u.lat, lon: u.lon, distanceNm: here ? Math.round(nm(here, u) * 10) / 10 : null }));
+    if (here) ukho.sort((a, b) => a.distanceNm - b.distanceNm);
     if (here) { std.sort((a, b) => a.distanceNm - b.distanceNm); sec.sort((a, b) => (a.distanceNm == null ? 1e9 : a.distanceNm) - (b.distanceNm == null ? 1e9 : b.distanceNm)); }
-    res.json({ standard: std, secondary: sec });
+    res.json({ standard: std, secondary: sec, ukho, ukhoConnected: !!ukhoConf() });
   });
   app.post('/api/tides/analyse/:code', (req, res) => {
     if (!station(req.params.code)) return res.status(404).json({ error: 'unknown station' });
@@ -232,19 +336,21 @@ module.exports = function tides(app, { db, auditRaw, getSetting }) {
     return { status: 200, body: { port: { kind: 'sec', id: sec.id, name: sec.name, lat: sec.lat, lon: sec.lon, std: { id: code, name: st.name } }, datum, levels: lv, quality, secondary: sec,
       extremes: sx.filter(e => e.t >= from && e.t <= to).map(e => ({ t: e.t, h: Math.round(e.h * 100) / 100, type: e.type, std: { t: e.std.t, h: e.std.h }, dt: Math.round(e.dt), dh: Math.round(e.dh * 100) / 100 })), curve } };
   }
-  app.get('/api/tides/predict', (req, res) => {
+  app.get('/api/tides/predict', async (req, res) => {
     const days = Math.min(14, Math.max(1, parseInt(req.query.days, 10) || 7));
     const from = Number.isFinite(+req.query.from) && +req.query.from > 0 ? +req.query.from : Date.now() - 6 * 3600000;
-    const r = predictPort(String(req.query.port || HOME), from, from + days * DAY);
+    const r = await predictAny(String(req.query.port || HOME), from, from + days * DAY);
+    if (r.noStore) res.set('Cache-Control', 'no-store');
     res.status(r.status).json(Object.assign({ source: 'Crow\'s Nest harmonic prediction from UK National Tide Gauge Network data (IOC Sea Level Monitoring Facility)' }, r.body));
   });
 
   // ---- dashboard card (kept compatible with older app builds: { configured, events: [{ type, time, heightM }] })
-  app.get('/api/tides', (req, res) => {
+  app.get('/api/tides', async (req, res) => {
     // port: asked for, else nearest to the phone's position (?lat&lon), else to the vessel's last position, else home
     let port = String(req.query.port || '');
     if (!port) port = (nearest({ lat: parseFloat(req.query.lat), lon: parseFloat(req.query.lon) }) || nearest(lastPosition()) || { code: HOME }).code;
-    const now = Date.now(), r = predictPort(port, now - 2 * 3600000, now + 36 * 3600000);
+    const now = Date.now(), r = await predictAny(port, now - 2 * 3600000, now + 36 * 3600000);
+    if (r.noStore) res.set('Cache-Control', 'no-store');
     if (r.status === 202) {
       const failed = r.body.status === 'failed';   // older dashboards read "error" as unavailable
       return res.json(Object.assign({ configured: true, analysing: !failed, port: r.body.station && r.body.station.name, portId: port, events: [] }, failed ? { failed: true, error: r.body.error } : {}));

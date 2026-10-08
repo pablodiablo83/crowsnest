@@ -30,7 +30,11 @@
     return null;
   }
   function jget(k) { try { return JSON.parse(lsGet(k) || 'null'); } catch (e) { return null; } }
-  function allPorts() { return S.ports.secondary.map(function (p) { return Object.assign({ key: 'sec:' + p.id }, p); }).concat(S.ports.standard.map(function (p) { return Object.assign({ key: p.id }, p); })); }
+  function allPorts() {
+    return S.ports.secondary.map(function (p) { return Object.assign({ key: 'sec:' + p.id }, p); })
+      .concat((S.ports.ukho || []).map(function (p) { return Object.assign({ key: 'ukho:' + p.id }, p); }))
+      .concat(S.ports.standard.map(function (p) { return Object.assign({ key: p.id }, p); }));
+  }
   function portByKey(k) { return allPorts().find(function (p) { return p.key === k; }) || null; }
   async function loadPorts() {
     var q = S.lat != null ? '?lat=' + S.lat.toFixed(3) + '&lon=' + S.lon.toFixed(3) : '';
@@ -51,6 +55,7 @@
   var ICON = {
     std: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M2 14c2.5-3 5-3 7.5 0s5 3 7.5 0 4-3 5-2"/><path d="M2 19c2.5-3 5-3 7.5 0s5 3 7.5 0 4-3 5-2"/><path d="M12 3v7"/></svg>',
     sec: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.5"/><path d="M12 7.5V21M5 13a7 7 0 0 0 14 0M8 11h8"/></svg>',
+    ukho: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>',
     place: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>'
   };
   var Q = { items: [], active: -1, timer: null, seq: 0 };
@@ -61,10 +66,13 @@
     var here = S.lat != null ? { lat: S.lat, lon: S.lon } : null, html;
     if (S.place) {
       var d = NM(S.place, p.lat != null ? p : (S.ports.standard.find(function (x) { return x.id === p.std; }) || p));
-      html = p.kind === 'sec' ? 'From your secondary port <b>' + esc(p.name) + '</b> (' + Math.round(d * 10) / 10 + ' nm away), predicted from ' + esc(p.stdName || '') + '.'
+      html = p.kind === 'ukho' ? 'From the UKHO station <b>' + esc(p.name) + '</b> (ADMIRALTY), ' + Math.round(d * 10) / 10 + ' nm away.' : p.kind === 'sec' ? 'From your secondary port <b>' + esc(p.name) + '</b> (' + Math.round(d * 10) / 10 + ' nm away), predicted from ' + esc(p.stdName || '') + '.'
         : 'From the <b>' + esc(p.name) + '</b> tide gauge, ' + Math.round(d) + ' nm away.';
       if (p.kind === 'std' && d > 5) html += '<span class="warn">Times and heights at ' + esc(S.place.name) + ' can differ from ' + esc(p.name) + '. For almanac accuracy, <button type="button" id="addPlace">add ' + esc(S.place.name) + ' as a secondary port</button>.</span>';
       $('place').textContent = S.place.name + (S.place.area ? ', ' + S.place.area : '');
+    } else if (p.kind === 'ukho') {
+      html = 'UKHO prediction for <b>' + esc(p.name) + '</b> (ADMIRALTY)' + (here ? ' · ' + Math.round(NM(here, p)) + ' nm from you' : '') + '.';
+      $('place').textContent = p.name;
     } else if (p.kind === 'sec') {
       html = 'Your secondary port, predicted from <b>' + esc(p.stdName || p.std) + '</b> by the Admiralty method' + (here && p.lat != null ? ' · ' + Math.round(NM(here, p)) + ' nm from you' : '') + '.';
       $('place').textContent = p.name;
@@ -78,7 +86,7 @@
   function choose(it) {
     if (it.kind === 'place') {
       S.place = { name: it.name, area: it.area, lat: it.lat, lon: it.lon };
-      S.port = it.secondary ? 'sec:' + it.secondary.id : it.nearest.id;
+      S.port = it.secondary ? 'sec:' + it.secondary.id : it.ukho && portByKey('ukho:' + it.ukho.id) ? 'ukho:' + it.ukho.id : it.nearest.id;
       S.place.port = S.port; lsSet(PLACE_KEY, JSON.stringify(S.place));
       var rec = (jget(RECENT_KEY) || []).filter(function (r) { return !(r.name === it.name && Math.abs(r.lat - it.lat) < 0.01); });
       rec.unshift(it); lsSet(RECENT_KEY, JSON.stringify(rec.slice(0, 6)));
@@ -111,11 +119,12 @@
   function portItem(p) {
     var here = S.lat != null ? { lat: S.lat, lon: S.lon } : null;
     return { kind: p.kind, key: p.kind === 'sec' ? 'sec:' + p.id : p.id, name: p.name,
-      sub: (p.kind === 'sec' ? 'Your port · on ' + (p.stdName || p.std) : 'Tide gauge') + (here && p.lat != null ? ' · ' + Math.round(NM(here, p)) + ' nm' : '') };
+      sub: (p.kind === 'sec' ? 'Your port · on ' + (p.stdName || p.std) : p.kind === 'ukho' ? 'UKHO station (ADMIRALTY)' : 'Tide gauge') + (here && p.lat != null ? ' · ' + Math.round(NM(here, p)) + ' nm' : '') };
   }
   function placeItem(pl) {
-    return { kind: 'place', name: pl.name, area: pl.area, lat: pl.lat, lon: pl.lon, nearest: pl.nearest, secondary: pl.secondary,
-      sub: (pl.area ? pl.area + ' · ' : '') + (pl.secondary ? 'your port ' + pl.secondary.name : 'tides from ' + pl.nearest.name + ', ' + Math.round(pl.nearest.distanceNm) + ' nm') };
+    var uk = pl.ukho && S.ports && portByKey('ukho:' + pl.ukho.id) ? pl.ukho : null;
+    return { kind: 'place', name: pl.name, area: pl.area, lat: pl.lat, lon: pl.lon, nearest: pl.nearest, secondary: pl.secondary, ukho: uk,
+      sub: (pl.area ? pl.area + ' · ' : '') + (pl.secondary ? 'your port ' + pl.secondary.name : uk ? 'UKHO station ' + uk.name : 'tides from ' + pl.nearest.name + ', ' + Math.round(pl.nearest.distanceNm) + ' nm') };
   }
   function suggest() {   // empty or unchanged field: near you and recent places
     var near = allPorts().filter(function (p) { return p.distanceNm != null; }).sort(function (a, b) { return a.distanceNm - b.distanceNm; }).slice(0, 5);
@@ -123,10 +132,11 @@
   }
   function search() {
     var raw = $('q').value.trim(), k = raw.toLowerCase();
-    if (!k || raw === choiceName()) return suggest();
+    if (!k) return suggest();   // (focus shows suggestions; any typing searches, even the current name)
     var mine = allPorts().filter(function (p) { return p.name.toLowerCase().indexOf(k) >= 0; });
     var recent = (jget(RECENT_KEY) || []).filter(function (r) { return r.name.toLowerCase().indexOf(k) >= 0; });
     var local = [{ title: 'Your ports', items: mine.filter(function (p) { return p.kind === 'sec'; }).map(portItem) },
+      { title: 'UKHO stations', items: mine.filter(function (p) { return p.kind === 'ukho'; }).slice(0, 6).map(portItem) },
       { title: 'Tide gauges', items: mine.filter(function (p) { return p.kind === 'std'; }).slice(0, 5).map(portItem) }];
     var seq = ++Q.seq;
     renderList([{ title: 'Places', items: recent.map(placeItem), msg: k.length >= 3 ? 'Searching places…' : '' }].concat(local));
@@ -166,7 +176,10 @@
     var from = midnight(Date.now()) - 6 * HOUR;
     var r;
     try { r = await api('/api/tides/predict?port=' + encodeURIComponent(S.port) + '&from=' + from + '&days=8'); }
-    catch (e) { $('nowBox').innerHTML = '<p class="t-msg">Tide predictions unavailable (' + esc(e.message) + ').</p>'; return; }
+    catch (e) {
+      $('nowBox').innerHTML = '<p class="t-msg">Tide predictions unavailable (' + esc(e.message) + ').' + (/^ukho:/.test(S.port) ? ' UKHO free-tier predictions cannot be kept for offline use: reconnect, or search a tide gauge.' : '') + '</p>';
+      return;
+    }
     if (r.status === 202) {   // first use of this gauge: a year of readings is being fetched and analysed
       var d = r.d, pr = d.progress;
       $('nowBox').innerHTML = d.status === 'failed' ? '<p class="t-msg">Could not read the ' + esc(d.station.name) + ' gauge data: ' + esc(d.error || 'unknown error') + '.</p><div class="h-actions"><button type="button" class="h-btn ghost" id="tRetry">Try again</button></div>' :
@@ -189,11 +202,11 @@
   function renderNow() {
     var d = S.data, now = Date.now(), cur = heightAt(now), next = d.extremes.filter(function (e) { return e.t > now; });
     var nhw = next.filter(function (e) { return e.type === 'HW'; })[0], nlw = next.filter(function (e) { return e.type === 'LW'; })[0];
-    var L = d.levels, spring = L.MHWS - L.MLWS, today = d.extremes.filter(function (e) { return e.t >= now - 13 * HOUR && e.t <= now + 13 * HOUR; });
+    var L = d.levels || {}, spring = d.levels ? L.MHWS - L.MLWS : null, today = d.extremes.filter(function (e) { return e.t >= now - 13 * HOUR && e.t <= now + 13 * HOUR; });
     var hi = Math.max.apply(null, today.filter(function (e) { return e.type === 'HW'; }).map(function (e) { return e.h; }).concat([-99]));
     var lo = Math.min.apply(null, today.filter(function (e) { return e.type === 'LW'; }).map(function (e) { return e.h; }).concat([99]));
-    var range = hi > -99 && lo < 99 ? hi - lo : null, pct = range ? Math.round(range / spring * 100) : null;
-    var neap = L.MHWN - L.MLWN, phase = range == null ? '' : range >= spring * 0.92 ? 'Springs' : range <= neap * 1.08 ? 'Neaps' : (isRisingRange() ? 'Building to springs' : 'Easing to neaps');
+    var range = hi > -99 && lo < 99 ? hi - lo : null, pct = range && spring ? Math.round(range / spring * 100) : null;
+    var neap = d.levels ? L.MHWN - L.MLWN : null, phase = range == null ? '' : range >= spring * 0.92 ? 'Springs' : range <= neap * 1.08 ? 'Neaps' : (isRisingRange() ? 'Building to springs' : 'Easing to neaps');
     $('nowBox').innerHTML = (cur ? '<div class="t-now" style="margin-top:12px"><div class="t-big">' + cur.h.toFixed(1) + '<small>m</small></div><div><div class="t-dir">' + (cur.rising ? '↑ Rising' : '↓ Falling') + '</div><div class="h-sub">' + esc(d.datum.label) + ' now, ' + hm(now) + '</div></div></div>' : '') +
       '<div class="t-next">' + [nhw, nlw].filter(Boolean).sort(function (a, b) { return a.t - b.t; }).map(function (e) {
         return '<div class="t-ev' + (e.type === 'HW' ? ' hw' : '') + '"><div class="k">Next ' + (e.type === 'HW' ? 'high' : 'low') + ' water</div><div class="v">' + hm(e.t) + ' · ' + m2(e.h) + ' m</div><div class="s">in ' + dur(e.t - now) + '</div></div>';
@@ -218,7 +231,7 @@
   function dayStart() { var d = new Date(midnight(Date.now())); d.setDate(d.getDate() + S.day); return d.getTime(); }
   function renderChart() {
     var svg = $('chart'), W = svg.clientWidth || 360, H = 230, padL = 30, padR = 8, padT = 22, padB = 22;
-    var t0 = dayStart(), t1 = t0 + DAY, d = S.data, L = d.levels;
+    var t0 = dayStart(), t1 = t0 + DAY, d = S.data, L = d.levels || {};
     var pts = d.curve.filter(function (p) { return p[0] >= t0 - 30 * MIN && p[0] <= t1 + 30 * MIN; });
     if (!pts.length) { svg.innerHTML = ''; return; }
     var top = Math.max(L.HAT || 0, Math.max.apply(null, pts.map(function (p) { return p[1]; }))) + 0.3, bot = Math.min(0, Math.min.apply(null, pts.map(function (p) { return p[1]; })) - 0.2);
@@ -265,7 +278,15 @@
     $('tableSub').textContent = 'Next 7 days, your local time. Heights ' + d.datum.label + '.';
   }
   function renderAbout() {
-    var d = S.data, q = d.quality, std = d.port.kind === 'sec' ? d.port.std.name : d.port.name;
+    var d = S.data, q = d.quality;
+    if (d.port.kind === 'ukho') {
+      $('about').innerHTML = (S.place ? esc(S.place.name) + ': ' : '') + 'high and low water times and heights for ' + esc(d.port.name) + ' are the UK Hydrographic Office’s predictions (ADMIRALTY UK Tidal API), heights above Chart Datum. ' +
+        'The curve between them is drawn by Crow’s Nest and its shape is approximate. ' + (d.coverageTo ? 'Predictions run to ' + esc(dayLabel(d.coverageTo)) + '. ' : '') +
+        (d.tier === 'discovery' ? '<b>Free tier:</b> UKHO does not allow these to be stored, so they need a connection and are not kept for offline use. ' : '') +
+        '<b>Astronomical tide only:</b> wind and pressure change heights and times. ' + esc(d.attribution || '');
+      return;
+    }
+    var std = d.port.kind === 'sec' ? d.port.std.name : d.port.name;
     $('about').innerHTML = (S.place && d.port.kind === 'std' ? esc(S.place.name) + ' has no tide gauge: these are ' + esc(d.port.name) + '’s tides, the nearest gauge. Place search: GeoNames via Open-Meteo (CC BY 4.0). ' : '') + (d.port.kind === 'sec' ? esc(d.port.name) + ' is predicted from ' + esc(std) + ' by the Admiralty method, using the differences you entered (' + esc(d.secondary.notes || 'your almanac') + '). ' : '') +
       esc(std) + ' predictions come from ' + q.days + ' days of its tide-gauge record (' + q.readings.toLocaleString('en-GB') + ' readings, UK National Tide Gauge Network via the IOC), analysed into tidal constants on ' + new Date(q.analysedAt).toLocaleDateString('en-GB') + '. ' +
       'Fit to the record: ' + Math.round(q.rmsM * 100) + ' cm, which is mostly weather. ' + esc(d.datum.note) + ' ' +
@@ -331,6 +352,28 @@
     } catch (e) { $('sErr').innerHTML = '<div class="h-err">' + esc(e.message.charAt(0).toUpperCase() + e.message.slice(1)) + '.</div>'; }
   }
 
+  /* ---------------------------------------------------------------- UKHO (ADMIRALTY UK Tidal API) connection */
+  async function loadUkho() {
+    var d; try { d = (await api('/api/tides/ukho')).d; } catch (e) { $('ukhoBox').innerHTML = ''; return; }
+    var box = $('ukhoBox');
+    if (d.connected) {
+      box.innerHTML = '<b>UKHO official predictions</b><p><span class="ok">Connected</span> · ' + esc(d.tier === 'discovery' ? 'Discovery (free): 7 days, live only, not kept offline' : d.tier.charAt(0).toUpperCase() + d.tier.slice(1) + ': ' + d.days + ' days, kept for offline use') +
+        (d.stations ? ' · ' + d.stations + ' stations. Search a port name to use them.' : '') + '</p>' + (d.error ? '<p class="err">' + esc(d.error) + '</p>' : '') +
+        (d.fromEnv ? '' : '<div class="h-actions"><button type="button" class="h-btn ghost" id="ukOff">Disconnect</button></div>');
+      if ($('ukOff')) $('ukOff').addEventListener('click', async function () { if (!window.confirm('Disconnect UKHO tidal data?')) return; await api('/api/tides/ukho', { method: 'DELETE' }); await loadPorts(); loadUkho(); });
+      return;
+    }
+    box.innerHTML = '<b>UKHO official predictions</b><p>Connect the ADMIRALTY UK Tidal API for the UK Hydrographic Office’s own high and low waters at about 600 UK ports, secondary ports such as Fowey included, with no almanac figures to type. Get a key from the ADMIRALTY developer portal: UK Tidal API, Discovery (free) or Foundation.</p>' +
+      '<form id="ukForm" novalidate><input class="h-in" id="ukKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Subscription key" aria-label="UKHO subscription key">' +
+      '<div class="row"><select class="h-in" id="ukTier" aria-label="Subscription"><option value="discovery">Discovery (free)</option><option value="foundation">Foundation (paid)</option><option value="premium">Premium (paid)</option></select>' +
+      '<button type="submit" class="h-btn primary" style="flex:none">Connect</button></div></form><div class="err" id="ukErr"></div>';
+    $('ukForm').addEventListener('submit', async function (e) {
+      e.preventDefault(); $('ukErr').textContent = 'Checking the key with UKHO…';
+      try { await api('/api/tides/ukho', { method: 'PUT', body: { key: $('ukKey').value.trim(), tier: $('ukTier').value } }); $('ukErr').textContent = ''; await loadPorts(); loadUkho(); toast('UKHO tidal data connected'); }
+      catch (err) { $('ukErr').textContent = err.message.charAt(0).toUpperCase() + err.message.slice(1) + '.'; }
+    });
+  }
+
   /* ---------------------------------------------------------------- events */
   $('days').addEventListener('click', function (e) { var b = e.target.closest('button[data-d]'); if (!b) return; S.day = +b.getAttribute('data-d'); buildDays(); if (S.day !== 0) S.sel = 72; renderChart(); });
   $('tslider').addEventListener('input', function () { S.sel = +this.value; renderChart(); });
@@ -356,6 +399,7 @@
     var f = await findPosition();
     if (f) { S.lat = f.lat; S.lon = f.lon; }
     try { await loadPorts(); } catch (e) { $('nowBox').innerHTML = '<p class="t-msg">Ports unavailable (' + esc(e.message) + ').</p>'; return; }
+    loadUkho();
     load();
     setInterval(function () { if (!document.hidden && S.data) { renderNow(); renderChart(); } }, 60000);
   })();

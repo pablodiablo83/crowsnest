@@ -11,9 +11,24 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
 const TRUTH = [['M2', 1.130, 342.2], ['S2', 0.305, 34.0], ['N2', 0.213, 315.6], ['K1', 0.106, 192.1], ['O1', 0.100, 45.9], ['M4', 0.092, 92.4],
   ['K2', 0.089, 34.2], ['MS4', 0.086, 119.9], ['nu2', 0.055, 316.8], ['L2', 0.054, 354.9], ['2N2', 0.052, 279.9], ['M3', 0.050, 112.8]].map(([name, H, G]) => ({ name, H, G }));
 const Z0 = 2.192;
-let hits = 0, wickHits = 0, geoHits = 0, seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
+let hits = 0, wickHits = 0, geoHits = 0, ukhoHits = 0, seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
 const fake = http.createServer((q, r) => {
   hits++;
+  if (q.url.startsWith('/ukho/')) {   // fake ADMIRALTY UK Tidal API (Discovery shape)
+    if (q.headers['ocp-apim-subscription-key'] !== 'GOODKEY1234567890ABCDEF') { r.writeHead(401); return r.end('{"statusCode":401}'); }
+    ukhoHits++;
+    if (/\/Stations$/.test(q.url)) {
+      r.writeHead(200, { 'Content-Type': 'application/json' });
+      return r.end(JSON.stringify({ type: 'FeatureCollection', features: [
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [-4.6333, 50.3333] }, properties: { Id: '0021', Name: 'Fowey', Country: 'England', ContinuousHeightsAvailable: false } },
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [-4.185, 50.368] }, properties: { Id: '0014', Name: 'Plymouth (Devonport)', Country: 'England', ContinuousHeightsAvailable: true } }] }));
+    }
+    const m = q.url.match(/Stations\/(\w+)\/TidalEvents\?duration=(\d+)/), ev = [];
+    const d0 = Math.floor(Date.now() / 86400000) * 86400000;
+    for (let t = d0 + 3 * 3600000, i = 0; t < d0 + (+m[2]) * 86400000; t += 22350000, i++)
+      ev.push({ EventType: i % 2 ? 'LowWater' : 'HighWater', DateTime: new Date(t).toISOString().slice(0, 19), IsApproximateTime: false, Height: i % 2 ? 1.0 : 5.0, IsApproximateHeight: false, Filtered: false });
+    r.writeHead(200, { 'Content-Type': 'application/json' }); return r.end(JSON.stringify(ev));
+  }
   if (q.url.startsWith('/v1/search')) {
     geoHits++;
     const name = new URL(q.url, 'http://x').searchParams.get('name') || '';
@@ -144,6 +159,36 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await page.waitForFunction(() => /Fowey|Largs|Millport/.test(document.getElementById('tidesSub').textContent), null, { timeout: 15000 });
   ok(/Fowey/.test(await page.textContent('#tidesSub')) && /Plymouth/.test(await page.textContent('#tidesSub')), 'dashboard card: Fowey (Plymouth)');
   ok(/High|Low/.test(await page.textContent('#tidesSub')) && (await page.$('#tideSvg line')), 'dashboard tide card: next waters and live curve');
+  // --- UKHO (ADMIRALTY UK Tidal API): connect with the user's key; free tier never stored, paid tier cached
+  const UK = (m, body) => fetch(B + '/api/tides/ukho', { method: m, headers: J, body: body ? JSON.stringify(body) : undefined });
+  ok((await (await UK('GET')).json()).connected === false, 'UKHO not connected at first');
+  let ur = await UK('PUT', { key: 'BADKEY1234567890ABCDEF', tier: 'discovery' });
+  ok(ur.status === 400 && /refused/.test((await ur.json()).error), 'wrong UKHO key refused, not saved');
+  ur = await UK('PUT', { key: 'GOODKEY1234567890ABCDEF', tier: 'discovery' });
+  ok(ur.status === 200 && (await ur.json()).stations === 2, 'UKHO key checked against the station list and saved');
+  const st2 = await (await UK('GET')).json();
+  ok(st2.connected && st2.tier === 'discovery' && !JSON.stringify(st2).includes('GOODKEY'), 'status never returns the key');
+  const su = await (await fetch(B + '/api/tides/search?q=Fowey')).json();
+  ok(su.ukho.some(u => u.id === '0021') && su.places[0].ukho && su.places[0].ukho.id === '0021', 'search: UKHO station Fowey, and the place Fowey maps to it');
+  let h0 = ukhoHits, pr = await fetch(B + '/api/tides/predict?port=ukho:0021&days=3&from=' + Date.now()), pd = await pr.json();
+  ok(pr.status === 200 && pd.port.kind === 'ukho' && pd.extremes.length >= 8 && pd.extremes.every(e => e.h === 5 || e.h === 1) && pd.curve.length > 200 && /Crown copyright/.test(pd.attribution), 'UKHO prediction: UKHO high/low waters, curve between them, Crown copyright credit');
+  ok(/no-store/.test(pr.headers.get('cache-control') || ''), 'free tier: sent with no-store (the phone keeps no copy)');
+  await fetch(B + '/api/tides/predict?port=ukho:0021&days=3');
+  ok(ukhoHits - h0 >= 2, 'free tier: fetched each time, not cached on the server');
+  await UK('PUT', { key: 'GOODKEY1234567890ABCDEF', tier: 'foundation' });
+  h0 = ukhoHits; pr = await fetch(B + '/api/tides/predict?port=ukho:0021&days=3'); await fetch(B + '/api/tides/predict?port=ukho:0021&days=3');
+  ok(ukhoHits - h0 === 1 && !/no-store/.test(pr.headers.get('cache-control') || ''), 'paid tier: cached (one UKHO call for two requests) and storable offline');
+  const cardU = await (await fetch(B + '/api/tides?port=ukho:0021')).json();
+  ok(cardU.port === 'Fowey' && cardU.events.length === 4, 'dashboard card works with a UKHO station');
+  await page.goto(B + '/tides.html'); await page.waitForSelector('.t-big');
+  ok(/Connected/.test(await page.textContent('#ukhoBox')), 'Tides page shows UKHO connected');
+  await pick('Fowey', 'UKHO station Fowey');
+  await page.waitForFunction(() => /UK Hydrographic Office/.test(document.getElementById('about').textContent), null, { timeout: 20000 });
+  ok(/UKHO station/.test(await page.textContent('#from')) && /Next (high|low) water/.test(await page.textContent('#nowBox')) && !(await page.$('.t-sn')), 'page: Fowey from UKHO (no springs bar: UKHO gives no levels)');
+  ok(await page.$eval('#chart .curve', p => p.getAttribute('d').length > 200), 'page: curve drawn through UKHO waters');
+  await page.screenshot({ path: SP + '/tides-ukho.png', fullPage: true });
+  await UK('DELETE');
+  ok((await (await UK('GET')).json()).connected === false, 'UKHO disconnected');
   ok(errs.length === 0, 'no page errors ' + errs.join('; '));
   await br.close(); fake.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASS');

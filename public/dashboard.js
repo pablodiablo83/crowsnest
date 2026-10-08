@@ -65,7 +65,7 @@ async function loadTides() {
     const fmt = iso => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     const next = (d.events || []).slice(0, 2);
     let place = null; try { place = JSON.parse(localStorage.getItem('cn_tidePlace') || 'null'); } catch (e) {}
-    const label = place && place.port === port ? `${esc(place.name)} <small>(${esc(d.port)})</small>` : esc(d.port);
+    const label = place && place.port === port && place.name !== d.port ? `${esc(place.name)} <small>(${esc(d.port)})</small>` : esc(d.port);
     setText('tidesSub', `${label}${d.now ? ` &middot; ${d.now.h.toFixed(1)}m ${d.now.rising ? '&uarr;' : '&darr;'}` : ''}<br>` +
       next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM.toFixed(1)}m`).join('<br>'));
     // the real curve: 2 h back to 12 h ahead, with a "now" tick
