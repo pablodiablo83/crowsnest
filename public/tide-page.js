@@ -110,7 +110,7 @@
       if (g.msg) html += '<li class="msg" role="presentation">' + esc(g.msg) + '</li>';
       g.items.forEach(function (it) {
         var i = Q.items.push(it) - 1;
-        html += '<li role="option" id="qo' + i + '" data-i="' + i + '" aria-selected="false"><span class="ic ' + it.kind + '">' + ICON[it.kind] + '</span><div><b>' + esc(it.name) + '</b><span>' + esc(it.sub) + '</span></div></li>';
+        html += '<li role="option" id="qo' + i + '" data-i="' + i + '" aria-selected="false"><span class="ic ' + esc(it.kind) + '">' + ICON[it.kind] + '</span><div><b>' + esc(it.name) + '</b><span>' + esc(it.sub) + '</span></div></li>';
       });
     });
     $('qList').innerHTML = html || '<li class="msg" role="presentation">No matches.</li>';

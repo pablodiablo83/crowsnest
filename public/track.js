@@ -5,7 +5,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var p2 = function (n) { return String(n).padStart(2, '0'); };
   var J = { 'Content-Type': 'application/json' };
-  function esc(s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
 
   /* ------------------------------------------------------------ formatting */
   function ddm(v, pos, neg) {

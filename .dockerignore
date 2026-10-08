@@ -1,4 +1,13 @@
-node_modules
+# only what the Dockerfile copies is needed; keep secrets, data and the phone-app tree out of the build context
+**/node_modules
 data
+bak-*
+.env
 *.log
 .git
+.github
+app
+tests
+docs
+caddy
+cloudflared

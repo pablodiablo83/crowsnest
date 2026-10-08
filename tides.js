@@ -68,7 +68,7 @@ module.exports = function tides(app, { db, auditRaw, getSetting, setSetting }) {
           chunk.forEach(o => obs.set(o.t, o));
           job.done = ++months; end -= 30 * DAY;
           const ts = [...obs.keys()];
-          span = ts.length ? (Math.max(...ts) - Math.min(...ts)) / DAY : 0;
+          span = ts.length ? (ts.reduce((m, t) => Math.max(m, t), -Infinity) - ts.reduce((m, t) => Math.min(m, t), Infinity)) / DAY : 0;
           if (span >= 364 && obs.size > 20000) break;
           if (!chunk.length && span >= 300) break;
           job.total = Math.max(job.total, months + 1);
@@ -338,7 +338,8 @@ module.exports = function tides(app, { db, auditRaw, getSetting, setSetting }) {
   }
   app.get('/api/tides/predict', async (req, res) => {
     const days = Math.min(14, Math.max(1, parseInt(req.query.days, 10) || 7));
-    const from = Number.isFinite(+req.query.from) && +req.query.from > 0 ? +req.query.from : Date.now() - 6 * 3600000;
+    // a window around now (a year either side): an absurd 'from' must not make the curve loop run away
+    const f = +req.query.from, from = Number.isFinite(f) && Math.abs(f - Date.now()) < 400 * DAY ? f : Date.now() - 6 * 3600000;
     const r = await predictAny(String(req.query.port || HOME), from, from + days * DAY);
     if (r.noStore) res.set('Cache-Control', 'no-store');
     res.status(r.status).json(Object.assign({ source: 'Crow\'s Nest harmonic prediction from UK National Tide Gauge Network data (IOC Sea Level Monitoring Facility)' }, r.body));

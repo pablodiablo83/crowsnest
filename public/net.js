@@ -165,7 +165,9 @@
     return d.device;
   };
   CNNet.disconnect = function () {
-    ['cn_token', 'cn_device'].forEach(function (k) { localStorage.removeItem(k); });
+    // forget this server's key, its cached data, the crew choice and the last position. Queued taps and positions
+    // stay: re-pairing with the same server (the usual case after a phone is removed by mistake) still delivers them.
+    ['cn_token', 'cn_device', 'cn.crew', 'cn_fix'].forEach(function (k) { localStorage.removeItem(k); });
     for (var i = localStorage.length - 1; i >= 0; i--) { var k = localStorage.key(i); if (k && k.indexOf(CACHE) === 0) removeItem.call(localStorage, k); }
     if (!onConnect) location.replace('/connect.html');
   };

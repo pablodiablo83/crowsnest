@@ -20,7 +20,7 @@ jobs:
       - name: Install
         run: |
           sudo apt-get install -y psmisc >/dev/null
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm install --no-save --no-audit --no-fund playwright
           npx playwright install --with-deps chromium
       - name: Run all suites

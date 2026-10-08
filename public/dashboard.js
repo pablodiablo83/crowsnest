@@ -26,7 +26,7 @@ async function getJson(url) {
   return r.json();
 }
 function setText(id, text) { $(id).innerHTML = text; }
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
 
 // ---------- Weather + wind ----------
 async function loadWeatherAndWind(lat, lon) {
@@ -92,7 +92,7 @@ async function loadHorSummary() {
     $('horRingFill').style.strokeDashoffset = String(326.7 * (1 - pct));
     setText('horRingCenter', `${Math.floor(mins / 60)}h<br>${Math.round(mins % 60)}m`);
     const label = d.status === 'rest' ? 'Resting' : d.status === 'work' ? 'Working' : 'No open period';
-    setText('horSub', `${d.crewName} &middot; ${label}`);
+    setText('horSub', `${esc(d.crewName)} &middot; ${label}`);
   } catch (e) {
     setText('horSub', 'Hours of Rest unavailable');
   }
@@ -103,7 +103,7 @@ async function loadLogTile() {
   try {
     const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
     const d = await getJson(`/api/log?limit=1&since=${encodeURIComponent(midnight.toISOString())}`);
-    setText('logCount', String(d.today));
+    setText('logCount', String(Number(d.today) || 0));
     setText('logCountSub', d.today === 1 ? 'entry today' : 'entries today');
     if (!d.entries.length) { setText('logLast', 'Nothing logged yet &mdash; tap to start'); return; }
     const e = d.entries[0], t = new Date(e.ts);

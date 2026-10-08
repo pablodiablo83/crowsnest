@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - name: Start the server and query every model
         run: |
           mkdir -p "$RUNNER_TEMP/data"

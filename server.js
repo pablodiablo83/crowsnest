@@ -8,11 +8,19 @@ const fs = require('fs');
 const horEngine = require('./engine/hor-engine.js');
 
 const BRAND = require('./public/brand.js');   // name + copyright line on every export
+// one CSV cell: quoted, and text starting = + - @ (a spreadsheet formula) prefixed with ' so Excel/Numbers show it as
+// text instead of running it; plain numbers (e.g. -4.91) stay numbers
+const csvCell = v => { let t = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(t) && !/^-?\d+(\.\d+)?$/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
 const csvNotice = () => `"${BRAND.notice()} Exported from ${BRAND.NAME} ${new Date().toISOString()}. The data is the vessel's own."`;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new Database(path.join(DATA_DIR, 'crowsnest.db'));
-let reqDevice = null;   // the paired device making the current request (handlers are synchronous; set and cleared around them)
+// Who is making the current request (web account or paired phone), carried per request through every async step
+// (AsyncLocalStorage). A shared variable was cleared too early when express.static checked files asynchronously,
+// which let crew accounts see the master's view on GET requests.
+const { AsyncLocalStorage } = require('async_hooks');
+const deviceCtx = new AsyncLocalStorage();
+const curDevice = () => deviceCtx.getStore() || null;
 
 db.pragma('journal_mode = WAL');
 db.exec(`
@@ -77,7 +85,7 @@ for (const sql of ['ALTER TABLE voyages ADD COLUMN declaration TEXT', 'ALTER TAB
 }
 const entryView = r => r ? { id: r.id, crew_id: r.crew_id, type: r.type, start: r.start, end: r.end, note: r.note } : null;
 function auditRaw(action, id, crewId, before, after, source) {
-  if (reqDevice) source = (source || 'api') + '@' + reqDevice.name;   // which paired phone did it
+  if (curDevice()) source = (source || 'api') + '@' + curDevice().name;   // which paired phone did it
   db.prepare('INSERT INTO entry_audit (at, entry_id, crew_id, action, before_json, after_json, source) VALUES (?,?,?,?,?,?,?)')
     .run(new Date().toISOString(), id, crewId || null, action,
       before ? JSON.stringify(before) : null, after ? JSON.stringify(after) : null, source || null);
@@ -136,6 +144,8 @@ function normTime(v) {
   if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(str)) throw new Error('time must include a time zone (e.g. 2026-10-06T11:33:00Z)');
   const t = Date.parse(str);
   if (isNaN(t)) throw new Error('invalid time');
+  // a sane window: dates far outside it break sorting and date arithmetic (and are always typing mistakes)
+  if (t < Date.UTC(2000, 0, 1) || t > Date.UTC(2100, 0, 1)) throw new Error('time must be between 2000 and 2100');
   return new Date(t).toISOString();
 }
 const FUTURE_TOL_MS = 5 * 60 * 1000;
@@ -237,7 +247,8 @@ function engineReport(crewId, extra, voyage) {
   return horEngine.evaluate(rows, opts);
 }
 function voyageSummary(v) {
-  const days = Math.max(1, Math.ceil((Date.parse(v.end) - Date.parse(v.start)) / 86400000) + 1);
+  // history over the voyage, at most its last 31 days (a long or backdated voyage must not stall the server)
+  const days = Math.min(31, Math.max(1, Math.ceil((Date.parse(v.end) - Date.parse(v.start)) / 86400000) + 1));
   const r = engineReport(v.crew_id, { history: true, historyDays: days }, v);
   const eps = r.history ? [...r.history.rest24, ...r.history.rest7d, ...r.history.interval] : [];
   return {
@@ -254,7 +265,7 @@ db.transaction(() => {
   for (const { crew_id } of crews) {
     const rows = db.prepare(`SELECT * FROM entries WHERE crew_id = ? AND voyage_id IS NULL AND ${ACTIVE} ORDER BY start ASC`).all(crew_id);
     const hasOpen = rows.some(r => !r.end);
-    const lastEnd = Math.max(...rows.map(r => Date.parse(r.end || r.start)));
+    const lastEnd = rows.reduce((m, r) => Math.max(m, Date.parse(r.end || r.start)), -Infinity);
     const keepOpen = hasOpen || (Date.now() - lastEnd) < 24 * 3600 * 1000;
     const v = startVoyage(crew_id, rows[0].start, 'migration');
     if (!keepOpen) {
@@ -267,7 +278,45 @@ db.transaction(() => {
 })();
 
 const app = express();
-app.use(express.json());
+app.disable('x-powered-by');
+// An error inside an async route must reach the error handler, never take the process down (Express 4 does not
+// catch rejected promises): wrap every async handler registered from here on (server.js, tides.js, extra.js).
+for (const m of ['get', 'post', 'put', 'delete', 'patch']) {
+  const orig = app[m].bind(app);
+  app[m] = (path, ...hs) => orig(path, ...hs.map(h => typeof h === 'function' && h.constructor.name === 'AsyncFunction'
+    ? (req, res, next) => h(req, res, next).catch(next) : h));
+}
+process.on('unhandledRejection', e => console.error(new Date().toISOString(), 'unhandled rejection', e && e.stack || e));
+// Browser security headers on every response (pages, API, errors). The pages load scripts only from this server
+// (no inline scripts: login/connect scripts are files), fonts from Google Fonts, map tiles from OpenStreetMap and
+// OpenSeaMap. Nothing may frame these pages (clickjacking). The phone apps load their bundled copy, unaffected.
+const CSP = ["default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com", "img-src 'self' data: blob: https://tile.openstreetmap.org https://tiles.openseamap.org",
+  "connect-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'"].join('; ');
+app.use((req, res, next) => {
+  res.set({ 'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'same-origin', 'Permissions-Policy': 'geolocation=(self), camera=(), microphone=(), payment=(), usb=()',
+    'Cross-Origin-Opener-Policy': 'same-origin' });
+  // HTTPS-only site: tell browsers so (not on a local address, where tests and the phone emulators use plain http)
+  if (!/^(localhost|127\.|10\.0\.2\.2|\[::1\])/.test(String(req.get('Host') || ''))) res.set('Strict-Transport-Security', 'max-age=31536000');
+  next();
+});
+app.use(express.json());   // 100 kB body limit (default)
+// Free-text fields must be text and are capped (an object or a megabyte of text is never a real note); the X-Source
+// label that goes into the audit trail is reduced to a short plain word.
+const TEXT_MAX = { note: 1000, reason: 500, name: 80, role: 60, primaryCrewId: 64 };
+app.use((req, res, next) => {
+  const b = req.body;
+  if (b && typeof b === 'object' && !Array.isArray(b)) {
+    for (const [k, max] of Object.entries(TEXT_MAX)) {
+      if (b[k] === undefined || b[k] === null) continue;
+      if (typeof b[k] !== 'string' && typeof b[k] !== 'number') return res.status(400).json({ error: k + ' must be text' });
+      b[k] = String(b[k]).slice(0, max);
+    }
+  }
+  if (req.headers['x-source'] !== undefined) req.headers['x-source'] = String(req.headers['x-source']).replace(/[^\w.@-]/g, '').slice(0, 40) || 'api';
+  next();
+});
 
 // ---- web sign-in (auth.js): ONE gate in front of every page and API route ----
 // Open without signing in: the login page and its images/styles, the health check, POST /api/auth/login,
@@ -275,7 +324,8 @@ app.use(express.json());
 // Everything else needs a session cookie. Caddy no longer asks for a password (removed 7 Oct 2026): this gate is the lock.
 const auth = require('./auth.js');
 auth.init(db);
-const PUBLIC_GET = [/^\/login\.html$/, /^\/wave\.css$/, /^\/assets\/[\w.-]+$/, /^\/favicon\.ico$/, /^\/apple-touch-icon[\w-]*\.png$/, /^\/manifest\.json$/, /^\/healthz$/];
+// login.js: the sign-in page's own script (moved out of login.html for the CSP); it holds no data
+const PUBLIC_GET = [/^\/login\.html$/, /^\/login\.js$/, /^\/wave\.css$/, /^\/assets\/[\w.-]+$/, /^\/favicon\.ico$/, /^\/apple-touch-icon[\w-]*\.png$/, /^\/manifest\.json$/, /^\/healthz$/];
 app.use((req, res, next) => {
   const p = req.path;
   if (/^\/api\/v1(\/|$)/i.test(p)) return next();
@@ -295,20 +345,22 @@ app.use((req, res, next) => {
   if (s.user.role === 'crew' && /^\/api\//i.test(p) && !/^\/api\/auth\//.test(p) && !crewAllowed({ crew_id: s.user.crew_id }, req.method, p))
     return res.status(403).json({ code: 'forbidden', error: 'this account is for one crew member only' });
   req.user = s.user; req.sid = auth.cookieOf(req);
-  reqDevice = { id: null, name: s.user.username, role: s.user.role, crew_id: s.user.crew_id, web: true };   // audit + crew limits
-  try { next(); } finally { reqDevice = null; }
+  deviceCtx.run({ id: null, name: s.user.username, role: s.user.role, crew_id: s.user.crew_id, web: true }, next);   // audit + crew limits
 });
 app.use(express.static(path.join(__dirname, 'public')));
 
 const signFails = new Map();   // key -> timestamps of failed sign-ins in the last 15 minutes (per username and per address)
 function tooMany(keys) {
   const now = Date.now();
-  return keys.some(([k, limit]) => { const a = (signFails.get(k) || []).filter(t => t > now - 15 * 60000); signFails.set(k, a); return a.length >= limit; });
+  if (signFails.size > 5000) for (const [k, a] of signFails) if (!a.some(t => t > now - 15 * 60000)) signFails.delete(k);   // prune
+  return keys.some(([k, limit]) => { const a = (signFails.get(k) || []).filter(t => t > now - 15 * 60000); if (a.length) signFails.set(k, a); else signFails.delete(k); return a.length >= limit; });
 }
-const clientIp = req => String(req.get('CF-Connecting-IP') || String(req.get('X-Forwarded-For') || '').split(',')[0] || req.ip || '').trim();
+const clientIp = req => String(req.get('CF-Connecting-IP') || String(req.get('X-Forwarded-For') || '').split(',')[0] || req.ip || '').trim().slice(0, 64);
 app.post('/api/auth/login', (req, res) => {
-  const b = req.body || {}, username = String(b.username || '').trim(), password = String(b.password || '');
-  const keys = [['u:' + username.toLowerCase(), 10], ['ip:' + clientIp(req), 30]];
+  const b = req.body || {}, username = String(b.username || '').trim().slice(0, 64), password = String(b.password || '').slice(0, 512);
+  // 10 wrong passwords per username from one address, 30 per address; a username-wide ceiling (200) only against
+  // spread-out guessing, so a stranger cannot lock the master out with 10 bad tries
+  const ip = clientIp(req), keys = [['u:' + username.toLowerCase() + '|' + ip, 10], ['ip:' + ip, 30], ['u:' + username.toLowerCase(), 200]];
   if (tooMany(keys)) return res.status(429).json({ code: 'too_many_attempts', error: 'too many wrong passwords - wait 15 minutes' });
   const u = username ? db.prepare('SELECT * FROM users WHERE username = ? AND disabled_at IS NULL').get(username) : null;
   const ok = auth.verifyPassword(password, u ? u.pass_hash : auth.DUMMY) && !!u;
@@ -331,6 +383,7 @@ app.get('/api/auth/status', (req, res) => res.json({ accounts: db.prepare('SELEC
 app.get('/api/auth/me', (req, res) => res.json({ user: auth.userView(req.user) }));
 app.post('/api/auth/password', (req, res) => {
   const b = req.body || {}, u = req.user;
+  if (!u) return res.status(400).json({ error: 'change the password on the web sign-in, not from a phone' });
   if (!auth.verifyPassword(String(b.current || ''), u.pass_hash)) return res.status(400).json({ code: 'bad_current', error: 'the current password is wrong' });
   const bad = auth.passwordProblem(b.next); if (bad) return res.status(400).json({ code: 'weak', error: bad });
   db.transaction(() => {
@@ -362,7 +415,7 @@ const normCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const deviceView = d => d ? { id: d.id, name: d.name, role: d.role, crewId: d.crew_id, createdAt: d.created_at, lastSeen: d.last_seen, revokedAt: d.revoked_at } : null;
 const APP_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'http://localhost', 'https://localhost']
   .concat(String(process.env.APP_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean));
-const pairFails = [];   // timestamps of failed pairing attempts (all devices): brute-force brake
+const pairFails = new Map();   // address -> timestamps of failed pairing attempts in the last hour: brute-force brake
 const PAIR_FAIL_LIMIT = 20;
 
 // What a crew-role device may do: read shared things, and read/write its own crew member's hours.
@@ -402,17 +455,16 @@ app.use((req, res, next) => {
   if (dev.role === 'crew' && !crewAllowed(dev, req.method, req.path)) return res.status(403).json({ code: 'forbidden', error: 'this phone is paired for ' + 'one crew member only' });
   const nowIso = new Date().toISOString();
   if (!dev.last_seen || Date.now() - Date.parse(dev.last_seen) > 60000) db.prepare('UPDATE devices SET last_seen = ? WHERE id = ?').run(nowIso, dev.id);
-  reqDevice = dev;
-  try { next(); } finally { reqDevice = null; }
+  deviceCtx.run(dev, next);
 });
 
 // Server clock (the app corrects tap times with it)
 app.get('/api/time', (req, res) => res.json({ now: new Date().toISOString() }));
 // Who is this? (the app shows it; null on the web)
-app.get('/api/me', (req, res) => res.json({ device: deviceView(reqDevice) }));
+app.get('/api/me', (req, res) => res.json({ device: deviceView(curDevice()) }));
 // Make a one-time pairing code (web app, master only)
 app.post('/api/devices/pair-code', (req, res) => {
-  if (reqDevice && reqDevice.role !== 'master') return res.status(403).json({ error: 'only the master can pair phones' });
+  if (curDevice() && curDevice().role !== 'master') return res.status(403).json({ error: 'only the master can pair phones' });
   const role = (req.body || {}).role === 'crew' ? 'crew' : 'master';
   const crewId = role === 'crew' ? String((req.body || {}).crewId || '') : null;
   if (role === 'crew' && !db.prepare(`SELECT 1 FROM crew WHERE id = ? AND ${ACTIVE}`).get(crewId)) return res.status(400).json({ error: 'choose the crew member this phone is for' });
@@ -426,13 +478,15 @@ app.post('/api/devices/pair-code', (req, res) => {
 });
 // Exchange a pairing code for a device token (the app; no login needed - the code is the proof)
 app.post('/api/auth/pair', (req, res) => {
-  const now = Date.now();
-  while (pairFails.length && pairFails[0] < now - 3600000) pairFails.shift();
-  if (pairFails.length >= PAIR_FAIL_LIMIT) return res.status(429).json({ code: 'too_many_attempts', error: 'too many wrong codes - wait an hour, or make a new code' });
+  const now = Date.now(), ip = clientIp(req);
+  for (const [k, a] of pairFails) { const f = a.filter(t => t > now - 3600000); if (f.length) pairFails.set(k, f); else pairFails.delete(k); }
+  const fails = pairFails.get(ip) || [], all = [...pairFails.values()].reduce((n, a) => n + a.length, 0);
+  // 20 wrong codes an hour per address; 500 an hour in all (a code is 1 in 2^40 and lives 10 minutes)
+  if (fails.length >= PAIR_FAIL_LIMIT || all >= 500) return res.status(429).json({ code: 'too_many_attempts', error: 'too many wrong codes - wait an hour, or make a new code' });
   const code = normCode((req.body || {}).code);
   const name = String((req.body || {}).name || '').trim().slice(0, 60) || 'Phone';
   const pc = code.length === 8 && db.prepare('SELECT * FROM pair_codes WHERE code_hash = ?').get(sha256(code));
-  if (!pc || pc.used_at || Date.parse(pc.expires_at) < now) { pairFails.push(now); return res.status(400).json({ code: 'bad_code', error: 'that code is wrong, used or expired - make a new one' }); }
+  if (!pc || pc.used_at || Date.parse(pc.expires_at) < now) { pairFails.set(ip, fails.concat(now)); return res.status(400).json({ code: 'bad_code', error: 'that code is wrong, used or expired - make a new one' }); }
   const token = crypto.randomBytes(32).toString('base64url');
   const dev = { id: uid(), name, token_hash: sha256(token), role: pc.role, crew_id: pc.crew_id, created_at: new Date(now).toISOString() };
   db.transaction(() => {
@@ -443,11 +497,11 @@ app.post('/api/auth/pair', (req, res) => {
   res.json({ token, device: deviceView(dev) });
 });
 app.get('/api/devices', (req, res) => {
-  if (reqDevice && reqDevice.role !== 'master') return res.status(403).json({ error: 'master only' });
+  if (curDevice() && curDevice().role !== 'master') return res.status(403).json({ error: 'master only' });
   res.json(db.prepare('SELECT * FROM devices ORDER BY created_at DESC').all().map(deviceView));
 });
 app.delete('/api/devices/:id', (req, res) => {
-  if (reqDevice && reqDevice.role !== 'master') return res.status(403).json({ error: 'master only' });
+  if (curDevice() && curDevice().role !== 'master') return res.status(403).json({ error: 'master only' });
   const d = db.prepare('SELECT * FROM devices WHERE id = ? AND revoked_at IS NULL').get(req.params.id);
   if (!d) return res.json({ ok: true });
   db.transaction(() => {
@@ -474,7 +528,7 @@ app.put('/api/vessel', (req, res) => {
 // ---- crew ----
 app.get('/api/crew', (req, res) => {
   const all = db.prepare('SELECT * FROM crew WHERE deleted_at IS NULL ORDER BY created_at ASC').all();
-  res.json(reqDevice && reqDevice.role === 'crew' ? all.filter(c => c.id === reqDevice.crew_id) : all);
+  res.json(curDevice() && curDevice().role === 'crew' ? all.filter(c => c.id === curDevice().crew_id) : all);
 });
 app.post('/api/crew', (req, res) => {
   const name = String(req.body.name || '').trim().slice(0, 60);
@@ -875,7 +929,7 @@ app.get('/api/export.csv', (req, res) => {
     const dur = e.end ? Math.round((new Date(e.end) - new Date(e.start)) / 60000) : '';
     return [vessel, vv.officialNumber, vv.flag, crewById[e.crew_id] || e.crew_id, roleById[e.crew_id] || '', e.type, e.start, e.end || '', dur, (e.note || '').replace(/[\r\n,]+/g, ' ')];
   });
-  const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n') + '\r\n' + csvNotice();
+  const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n' + csvNotice();
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="crowsnest-hours-of-rest.csv"');
   res.send(csv);
@@ -883,7 +937,7 @@ app.get('/api/export.csv', (req, res) => {
 
 // ---- dashboard: primary crew member (whose rest status shows on the main dashboard) ----
 // a crew member's phone always shows that crew member on its dashboard
-const dashCrewId = () => reqDevice && reqDevice.role === 'crew' ? reqDevice.crew_id : getSetting('primaryCrewId', '');
+const dashCrewId = () => curDevice() && curDevice().role === 'crew' ? curDevice().crew_id : getSetting('primaryCrewId', '');
 app.get('/api/dashboard/settings', (req, res) => {
   res.json({ primaryCrewId: dashCrewId() });
 });
@@ -974,7 +1028,7 @@ function analyseTrack(rows) {
     fixes: pts.length, used: used.length, ignored: pts.length - used.length,
     distanceNm: round1(dist), avgKn: runH >= 0.1 ? round1(runNm / runH) : null, maxLegKn: maxKn ? round1(maxKn) : null,
     gaps, firstTs: used.length ? used[0].ts : null, lastTs: used.length ? used[used.length - 1].ts : null,
-    bbox: used.length ? [Math.min(...used.map(p => p.lat)), Math.min(...used.map(p => p.lon)), Math.max(...used.map(p => p.lat)), Math.max(...used.map(p => p.lon))] : null
+    bbox: used.length ? used.reduce((b, p) => [Math.min(b[0], p.lat), Math.min(b[1], p.lon), Math.max(b[2], p.lat), Math.max(b[3], p.lon)], [90, 180, -90, -180]) : null   // a loop: spread overflows on long tracks
   };
   return { points: pts, legs, stats };
 }
@@ -985,6 +1039,7 @@ function trackRows(v) {
 }
 const trackOf = v => analyseTrack(trackRows(v));
 function trackCrewId(req) {
+  const me = curDevice(); if (me && me.role === 'crew') return me.crew_id;   // crew see only their own voyages
   const q = req && req.query && req.query.crew;
   if (q && db.prepare(`SELECT 1 FROM crew WHERE id = ? AND ${ACTIVE}`).get(String(q))) return String(q);
   const p = getSetting('primaryCrewId', '');
@@ -1004,6 +1059,7 @@ app.post('/api/positions', (req, res) => {
   let ts;
   try { ts = b.ts ? normTime(b.ts) : new Date().toISOString(); } catch (e) { return res.status(400).json({ error: e.message }); }
   if (Date.parse(ts) > Date.now() + FUTURE_TOL_MS) return res.status(400).json({ error: 'time is in the future' });
+  if (Date.parse(ts) < Date.now() - 400 * 86400000) return res.status(400).json({ error: 'time is more than 400 days ago' });
   if (b.id !== undefined && !/^[A-Za-z0-9_-]{1,64}$/.test(String(b.id))) return res.status(400).json({ error: 'id must be 1-64 letters, digits, _ or -' });
   const id = b.id ? String(b.id) : uid();
   const source = POS_SOURCES.includes(b.source) ? b.source : 'auto';
@@ -1063,7 +1119,8 @@ app.get('/api/track/voyages', (req, res) => {
 });
 function voyageForTrack(req, res) {
   const v = db.prepare(`SELECT * FROM voyages WHERE id = ? AND ${ACTIVE}`).get(req.params.id);
-  if (!v) { res.status(404).json({ error: 'voyage not found' }); return null; }
+  const me = curDevice();
+  if (!v || (me && me.role === 'crew' && v.crew_id !== me.crew_id)) { res.status(404).json({ error: 'voyage not found' }); return null; }
   return v;
 }
 app.get('/api/voyages/:id/track', (req, res) => {
@@ -1104,7 +1161,7 @@ app.get('/api/voyages/:id/track.csv', (req, res) => {
   const rows = trackOf(v).points.map(p => [p.ts, p.lat, p.lon, p.acc == null ? '' : Math.round(p.acc), p.sog == null ? '' : p.sog, p.cog == null ? '' : p.cog, p.source, p.used ? 'yes' : 'no ' + p.why]);
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="crowsnest-track-${v.start.slice(0, 10)}.csv"`);
-  res.send([['time_utc', 'lat', 'lon', 'accuracy_m', 'sog_kn', 'cog_deg', 'source', 'used'], ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n') + '\r\n' + csvNotice());
+  res.send([['time_utc', 'lat', 'lon', 'accuracy_m', 'sog_kn', 'cog_deg', 'source', 'used'], ...rows].map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n' + csvNotice());
 });
 
 // ---- weather & wind (Open-Meteo — free, no API key, forecast model not an official marine forecast) ----

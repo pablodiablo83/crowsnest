@@ -5,8 +5,9 @@ WORKDIR /app
 # better-sqlite3 needs build tools to compile its native binding on alpine
 RUN apk add --no-cache python3 make g++
 
-COPY package.json ./
-RUN npm install --omit=dev
+COPY package.json package-lock.json ./
+# exact versions from the lockfile (reproducible, audited builds)
+RUN npm ci --omit=dev
 
 COPY server.js extra.js inshore-areas.js auth.js tides.js tide-stations.js ./
 COPY tools ./tools

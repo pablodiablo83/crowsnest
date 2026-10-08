@@ -27,7 +27,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Start a test server and pair a device
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           mkdir -p "$RUNNER_TEMP/data"
           (DATA_DIR="$RUNNER_TEMP/data" PORT=8091 node server.js > "$RUNNER_TEMP/server.log" 2>&1 &)
           for i in $(seq 30); do curl -sf localhost:8091/healthz >/dev/null && break; sleep 1; done
