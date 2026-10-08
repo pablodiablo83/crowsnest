@@ -37,9 +37,22 @@
   document.documentElement.classList.add('cn-app');
   // full-screen in the app: keep content clear of the notch / status bar (Safari did this for the web pages)
   var css = document.createElement('style');
-  css.textContent = 'html.cn-app body{padding-top:env(safe-area-inset-top)}';
+  // iOS reports the insets through env(); Android (Capacitor 8 SystemBars) through --safe-area-inset-* variables
+  var platform = C && typeof C.getPlatform === 'function' ? C.getPlatform() : (C && C.platform) || '';
+  if (platform) document.documentElement.classList.add('cn-' + platform);
+  css.textContent = 'html.cn-app body{padding-top:max(env(safe-area-inset-top,0px),var(--safe-area-inset-top,0px))}' +
+    'html.cn-android body{padding-bottom:var(--safe-area-inset-bottom,0px);padding-left:var(--safe-area-inset-left,0px);padding-right:var(--safe-area-inset-right,0px)}';
   document.head.appendChild(css);
   var SB = plug('StatusBar'); if (SB) SB.setStyle({ style: 'DARK' }).catch(function () {});   // light text on the navy header
+  // Android back button / gesture: previous page, else leave the app (the default would close it from any page)
+  var AppP = plug('App');
+  if (platform === 'android' && AppP && AppP.addListener) {
+    AppP.addListener('backButton', function (e) {
+      // an open sheet (Hours of rest forms) closes first, as Escape does
+      if (document.querySelector('.h-sheetwrap')) { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return; }
+      if (e && e.canGoBack) window.history.back(); else if (AppP.exitApp) AppP.exitApp();
+    });
+  }
 
   /* ---- storage: localStorage stays the fast copy; native Preferences is the durable one ---- */
   var Prefs = plug('Preferences');

@@ -3,10 +3,9 @@ services:
     build: .
     container_name: crowsnest-hor
     restart: unless-stopped
-    # Bound to localhost only — exactly like the Blairquhosh dashboard
-    # container (port 8088). Caddy is what reaches this port (see
-    # caddy/crowsnest.Caddyfile) and enforces the login; the tunnel talks
-    # to Caddy, never directly to this container.
+    # Bound to localhost only. Caddy (/etc/caddy/Caddyfile) is what reaches
+    # this port and the Cloudflare tunnel talks to Caddy, never directly to
+    # this container. The login is the app's own (auth.js), not Caddy's.
     ports:
       - "127.0.0.1:8090:8080"
     volumes:

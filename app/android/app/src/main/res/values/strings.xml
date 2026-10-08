@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Crow\'s Nest</string>
+    <string name="title_activity_main">Crow\'s Nest</string>
+    <string name="package_name">uk.co.crowsnest.app</string>
+    <string name="custom_url_scheme">uk.co.crowsnest.app</string>
+</resources>

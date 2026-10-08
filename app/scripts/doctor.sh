@@ -9,5 +9,8 @@ v=$(node -v 2>/dev/null | sed 's/v//; s/\..*//'); [ -n "$v" ] && [ "$v" -ge 20 ]
 [ -f www/index.html ] && ok "web pages copied (www/)" || bad "run: npm run sync"
 curl -s -o /dev/null -w '%{http_code}' https://app.crows-nest.co.uk/api/v1/time | grep -q 200 && ok "server reachable for the app (/api/v1/time)" \
   || bad "https://app.crows-nest.co.uk/api/v1/time is not 200: deploy the server, and let /api/v1/* through Caddy (docs/IOS-APP.md)"
-[ $fail = 0 ] && echo "Ready: npm run open, then Run in Xcode." || echo "Fix the lines marked FIX, then run npm run doctor again."
+# Android (optional on this computer: GitHub builds Android without it). Only reported, never a failure.
+if java -version >/dev/null 2>&1; then echo "ok    Android: $(java -version 2>&1 | head -1)"; else echo "info  Android: no Java here (only needed to build Android locally: Android Studio includes it)"; fi
+[ -n "${ANDROID_HOME:-}${ANDROID_SDK_ROOT:-}" ] && echo "ok    Android SDK: ${ANDROID_HOME:-$ANDROID_SDK_ROOT}" || echo "info  Android SDK not set up here (Android Studio installs it; GitHub builds Android without it)"
+[ $fail = 0 ] && echo "Ready: npm run open, then Run in Xcode (Android: npm run open:android in Android Studio)." || echo "Fix the lines marked FIX, then run npm run doctor again."
 exit $fail

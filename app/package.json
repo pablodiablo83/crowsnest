@@ -2,16 +2,20 @@
   "name": "crowsnest-app",
   "version": "1.0.0",
   "private": true,
-  "description": "Crow's Nest iOS app: the web pages in public/ bundled into a native shell (Capacitor)",
+  "description": "Crow's Nest phone app (iOS and Android): the web pages in public/ bundled into a native shell (Capacitor)",
   "scripts": {
     "build": "node scripts/build-www.js",
-    "sync": "node scripts/build-www.js && cap sync ios",
+    "sync": "node scripts/build-www.js && cap sync",
+    "sync:ios": "node scripts/build-www.js && cap sync ios",
+    "sync:android": "node scripts/build-www.js && cap sync android",
     "open": "cap open ios",
-    "icons": "node scripts/make-icons.js && capacitor-assets generate --ios --iconBackgroundColor '#FFFFFF' --splashBackgroundColor '#00154C'",
+    "open:android": "cap open android",
+    "icons": "node scripts/make-icons.js && capacitor-assets generate --ios --android --iconBackgroundColor '#00154C' --iconBackgroundColorDark '#00154C' --splashBackgroundColor '#00154C' --splashBackgroundColorDark '#00154C'",
     "doctor": "bash scripts/doctor.sh"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.26",
+    "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.1.2",
     "@capacitor/browser": "^8.0.5",
     "@capacitor/core": "^8.5.2",

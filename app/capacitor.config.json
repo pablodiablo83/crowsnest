@@ -7,5 +7,11 @@
     "backgroundColor": "#00154C",
     "contentInset": "never",
     "limitsNavigationsToAppBoundDomains": false
+  },
+  "android": {
+    "backgroundColor": "#00154C",
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
   }
 }

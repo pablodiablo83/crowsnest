@@ -1,0 +1,85 @@
+# Build, sign and (optionally) upload the Android app to Google Play. Run by hand: Actions > Android release > Run
+# workflow. The twin of "iOS TestFlight". Needs these repository secrets (see docs/ANDROID-APP.md):
+#   ANDROID_KEYSTORE_B64        the upload key (PKCS12 .p12), base64
+#   ANDROID_KEYSTORE_PASSWORD   its password
+#   ANDROID_KEY_ALIAS           its alias (e.g. upload)
+#   PLAY_SERVICE_ACCOUNT_JSON   optional: Google Play service account key (JSON). Without it the signed bundle is
+#                               kept as a run artifact for uploading by hand (the very first upload must be by hand).
+# Version: name from app/package.json (same as iOS), code = this workflow's run number.
+name: Android release
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: Google Play track
+        type: choice
+        options: [internal, alpha, beta, production]
+        default: internal
+      status:
+        description: Release status (use draft until the app has been through its first review)
+        type: choice
+        options: [completed, draft]
+        default: completed
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+    env:
+      KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+      CN_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      CN_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - name: Check secrets
+        working-directory: .
+        run: |
+          for v in KS_B64 CN_KEYSTORE_PASSWORD CN_KEY_ALIAS; do [ -n "${!v}" ] || { echo "Missing secret for $v - see docs/ANDROID-APP.md"; exit 1; }; done
+          [ -n "$PLAY_JSON" ] && echo "Will upload to Google Play (${{ inputs.track }})." || echo "No PLAY_SERVICE_ACCOUNT_JSON: the signed bundle will be kept as an artifact to upload by hand."
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - run: npm run sync:android
+      - name: Upload key
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/keys/upload.p12"
+          echo "CN_KEYSTORE_FILE=$RUNNER_TEMP/keys/upload.p12" >> "$GITHUB_ENV"
+      - name: Build the signed app bundle
+        run: |
+          VERSION_NAME=$(node -p "require('./package.json').version")
+          echo "Version $VERSION_NAME ($VERSION_CODE)"
+          cd android && ./gradlew bundleRelease --no-daemon -PversionCode="$VERSION_CODE" -PversionName="$VERSION_NAME" 2>&1 | tail -30
+          mkdir -p "$RUNNER_TEMP/out" && cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/out/crowsnest-$VERSION_NAME-$VERSION_CODE.aab"
+          ls -la "$RUNNER_TEMP/out"
+      - name: Upload to Google Play
+        if: env.PLAY_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: uk.co.crowsnest.app
+          releaseFiles: ${{ runner.temp }}/out/*.aab
+          track: ${{ inputs.track }}
+          status: ${{ inputs.status }}
+      - name: Keep the bundle (first upload by hand, or a copy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: crowsnest-android-release-aab
+          path: ${{ runner.temp }}/out/*.aab
+          retention-days: 7
+      - name: Remove the key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"

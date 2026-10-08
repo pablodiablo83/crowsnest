@@ -1,5 +1,7 @@
 # Crow's Nest iOS app
 
+Android is the same app from the same project: see [ANDROID-APP.md](ANDROID-APP.md).
+
 The app is the existing web app (`public/`) bundled into a native iOS shell with [Capacitor](https://capacitorjs.com) 8.
 The pages are the same as the web version. `public/net.js` changes how they talk to the server, and only does so inside the app.
 The server stays the authority: it checks every record and decides compliance. The phone stores what happened, shows the last known state and sends records when it can.
@@ -28,12 +30,8 @@ Cloudflare tunnel -> Caddy (basic auth for the web; /api/v1/* let through) -> se
 ## This week, from the iPhone (before the Mac)
 
 1. **Deploy the server**: run `deploy`. The web app is unchanged for you. New: Customise > Phones.
-2. **Done 7 Oct 2026.** Caddy: let `/api/v1/*` through without basic auth. The app has its own login (the device token). `server.js` refuses any `/api/v1` request without a valid token, apart from pairing and `/api/v1/time`. Send Claude the last 15 lines of `grep -n "basic\|@\|handle\|route" ~/crowsnest-hor/caddy/*` to get the exact edit. It is the same kind of exemption already used for the favicon. Check afterwards:
-   ```
-   for p in /api/v1/time /api/v1/vessel /api/vessel; do echo "$p $(curl -s -o /dev/null -w '%{http_code}' https://app.crows-nest.co.uk$p)"; done
-   ```
-   Expected `200`, `401`, `401`. The middle 401 comes from the app (JSON, "not paired"). The last 401 comes from Caddy (basic auth still guards the web).
-3. **Enrol in the Apple Developer Program**: Apple Developer app > Account > Enroll. Costs £79 a year.
+2. **Done 7 Oct 2026.** Caddy lets `/api/v1/*` through, and since 7 Oct Caddy has no password at all: the app's own sign-in is the only lock on the web, and `/api/v1` needs a device token.
+3. **Enrolled in the Apple Developer Program** (approved Oct 2026): Apple Developer app > Account > Enroll. Costs £79 a year.
    - Individual: quickest. Your name shows as the developer, which doesn't matter for TestFlight.
    - Organisation: needs a D-U-N-S number and takes days to weeks.
 
@@ -48,7 +46,7 @@ Cloudflare tunnel -> Caddy (basic auth for the web; /api/v1/* let through) -> se
    ```
    git clone https://github.com/pablodiablo83/crowsnest.git && cd crowsnest/app
    npm ci
-   npm run sync      # copies ../public into the app and wires the plugins
+   npm run sync:ios  # copies ../public into the app and wires the plugins (npm run sync does iOS and Android)
    npm run doctor    # checks Xcode, Node and the server; says what to fix
    npm run open      # opens Xcode
    ```

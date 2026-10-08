@@ -140,6 +140,28 @@ const BRIDGE = `
   await page.waitForURL(/connect\.html$/, { timeout: 10000 });
   ok(true, 'removed phone is sent back to the connect page');
 
+  // Android: same pages; system-bar insets from Capacitor's --safe-area-inset-* variables; Back = previous page, else exit
+  const apc = await api('POST', '/api/devices/pair-code', { role: 'master' });
+  const atok = await (await fetch(API + '/api/v1/auth/pair', { method: 'POST', headers: J, body: JSON.stringify({ code: apc.code, name: 'Android test' }) })).json();
+  const paired = { s: API, t: atok.token, d: JSON.stringify({ name: 'Android test', role: 'master' }) };
+  const actx = await br.newContext({ viewport: { width: 412, height: 915 } });
+  await actx.addInitScript(BRIDGE.replace("platform: 'ios',", "platform: 'android', getPlatform: function () { return 'android'; },")
+    .replace("App: { addListener: function () {", "App: { exitApp: function () { window.__exited = true; }, addListener: function (n, f) { if (n === 'backButton') window.__back = f;"));
+  await actx.addInitScript(p => { localStorage.setItem('cn_server', p.s); localStorage.setItem('cn_token', p.t); localStorage.setItem('cn_device', p.d);
+    const set = () => { document.documentElement.style.setProperty('--safe-area-inset-top', '24px'); document.documentElement.style.setProperty('--safe-area-inset-bottom', '48px'); };
+    if (document.documentElement) set(); else document.addEventListener('DOMContentLoaded', set); }, paired);
+  const ap = await actx.newPage(); ap.on('pageerror', e => errs.push('android: ' + e.message));
+  await ap.goto(WWW + '/'); await ap.waitForFunction(() => document.documentElement.classList.contains('cn-android') && typeof window.__back === 'function');
+  ok(!/connect\.html/.test(ap.url()), 'Android: paired phone opens the dashboard');
+  ok(await ap.evaluate(() => getComputedStyle(document.body).paddingTop === '24px' && getComputedStyle(document.body).paddingBottom === '48px'), 'Android: content kept clear of the status and navigation bars');
+  await ap.goto(WWW + '/tides.html'); await ap.waitForFunction(() => typeof window.__back === 'function');
+  await ap.evaluate(() => window.__back({ canGoBack: true }));
+  await ap.waitForURL(u => !/tides\.html/.test(String(u)));
+  ok(true, 'Android Back: previous page');
+  await ap.waitForFunction(() => typeof window.__back === 'function');
+  await ap.evaluate(() => window.__back({ canGoBack: false }));
+  ok(await ap.evaluate(() => window.__exited === true), 'Android Back on the first page leaves the app');
+  await actx.close();
   ok(errs.length === 0, 'no page errors ' + errs.join('; '));
   await br.close(); www.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASS');
