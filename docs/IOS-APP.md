@@ -73,6 +73,9 @@ If something fails, send Claude the Xcode error (the first red line) or a screen
 
 A build run from Xcode works for development. TestFlight is the proper install route (builds last 90 days, and updates arrive like App Store updates).
 
+0. **Register the app ID** (Xcode does this itself, but without a Mac it must be done by hand, else the Bundle ID is
+   missing from the New App form): developer.apple.com > Account > Certificates, IDs & Profiles > Identifiers > + >
+   App IDs > App > Description "Crow's Nest", Bundle ID **Explicit** `uk.co.crowsnest.app`, no extra capabilities > Register.
 1. **App Store Connect > Apps > + New App**:
    - Platform: iOS.
    - Name: "Crow's Nest". Store names must be unique. If it's taken, use e.g. "Crow's Nest Hours of Rest". The home-screen name stays "Crow's Nest".
@@ -93,6 +96,9 @@ A build run from Xcode works for development. TestFlight is the proper install r
    - **Internal testers**: up to 100, each must be a user on your App Store Connect team. Install the TestFlight app and accept the invite.
    - **Crew without accounts**: use external testing (a public link or email invites). The first build needs a light Beta App Review, about a day.
 4. Each crew phone: on the web, open Customise > Phones > Pair a phone > **One crew member** > choose the person. That phone then sees and changes only that person's hours.
+
+Already in the project, so TestFlight asks no extra questions: export compliance (`ITSAppUsesNonExemptEncryption` false:
+HTTPS only) and the privacy manifest (`App/PrivacyInfo.xcprivacy`: Preferences uses UserDefaults, reason CA92.1).
 
 Not needed for TestFlight: App Store screenshots, privacy policy page, App Review. Those matter only for a public App Store listing.
 
