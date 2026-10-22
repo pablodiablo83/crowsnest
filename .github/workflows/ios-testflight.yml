@@ -119,4 +119,5 @@ jobs:
         run: '[ -f "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" ] && ruby .github/scripts/asc-dev-certs.rb "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" "$KEY_ID" "$ISSUER_ID" || true'
       - name: Remove the key
         if: always()
+        working-directory: .
         run: rm -rf "$RUNNER_TEMP/keys"
