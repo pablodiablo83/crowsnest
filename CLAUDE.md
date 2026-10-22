@@ -61,3 +61,28 @@ Pabs works from an iPhone terminal (SSH to the server) - long pastes get garbled
 - Branding on exports: `public/brand.js` (browser `window.CNBrand`, server `require('./public/brand.js')`) holds the name, the copyright holder (HOLDER, one line), the mark, letterhead/footer and `docTitle` (PDF name). Used by the passage pack, hours of rest record, voyage map print, CSV (notice as the LAST line so the header stays first), JSON (`generator`, `copyright`), GPX (`<copyright>`). Any new export must use it. Third-party credits stay (Met Office Crown copyright, Open-Meteo CC BY 4.0, UKHO/almanac).
 - Express default error page leaked stack traces: a final JSON error handler in server.js now answers 500 without detail (logs the stack).
 
+
+## How Pabs builds apps (learned from Streakling, 22 Oct 2026; apply here)
+Process that worked:
+- One source-of-truth file per project (here: this file) holding decisions, current state, rules and lessons; read it first in a new session, update it after anything important. Code is the authority for code, the file for decisions.
+- Small verified steps on `main`: tests before every push, CI on every push. Fixes only once a release is frozen; new features go to the next version.
+- Visual changes: mockups or real screenshots first, as lettered options (A/B/C); Pabs picks, often by letter ("A", "Do 2 4 and 5").
+- Independent reviews by fresh agents that are not told earlier findings: technical code review, feature QA, adversarial pen test, and a plain user review scored out of 10. Can vary one input per reviewer (e.g. a different price each) to compare. Verify each finding by hand before fixing; reviewers never change the repo. Show the full reviews when asked.
+- Real testers' feedback is acted on fast while testers are available.
+- Store/release builds only when Pabs says so (Streakling: the word LAUNCH). Each later change needs a new go-ahead. He often asks "Has it started?" / "Is it done?": give the run number, state and time (his phone's UK time).
+- Store and console fields: plain text, one field per reply, ready to paste; exact tap paths (iPhone or Windows laptop).
+- At a release: frozen plain-text code export of the shipped commit, a release branch, and an evidence trail (timeline, authorship, reviews).
+- When his Claude limits run low he asks for consolidation and exports: keep this file current so a new session can continue.
+Preferences:
+- Native iOS look (Apple Wallet-like); rejected as childish/amateur: stars, sparkles, fuzzy glow, pastel "colour-blind test" palettes. Contrast by brightness, not just hue. Motion consistent across screens.
+- Privacy first: times of day can be sensitive (he flagged gym times); keep only what a feature needs. Here that means care with positions.
+- Every claim (store, site, docs) must match the build that ships.
+Mistakes made there (do not repeat):
+- A build started without his go-ahead. A screenshot time read as UTC, so a working build was cancelled: use his phone time.
+- `.p8` copied on an iPhone got mangled: the workflow should rebuild a clean PEM from the base64 body and check the key before building.
+- `macos-latest` jobs sat 15 min in the queue and were cancelled: pin the runner (macos-15 worked).
+- Each CI Mac creates an Apple Development certificate; after ~25 builds Apple's limit stops builds: revoke the "Created via API" ones each run.
+- Jobs failing in ~4 s with no steps = GitHub Actions budget at $0 (Billing > Budgets), not the code.
+- Unsigned/ad-hoc archives dropped entitlements: sign automatically with the API key and check entitlements in the signed IPA.
+- Swift written without a compiler: the first build is the compile check, say so.
+- A store listing that described an older screen; a short CSS class name that clashed with an existing one (grep first); tests that checked a row existed instead of reading its label.
