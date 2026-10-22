@@ -6,12 +6,22 @@
 #   ASC_ISSUER_ID      Issuer ID shown on the same page
 #   ASC_KEY_P8         the full text of the downloaded AuthKey_XXXX.p8 file
 # The app record (bundle ID uk.co.crowsnest.app) must already exist in App Store Connect.
+# Lessons from the same account's other app (Streakling): pinned runner, a clean PEM rebuilt from the secret and checked
+# with Apple before building, and the development certificates each CI Mac makes revoked before and after.
 name: iOS TestFlight
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: Mac image (macos-latest jobs sat in the queue and were cancelled in the other project)
+        type: choice
+        options: [macos-15, macos-latest]
+        default: macos-15
+permissions:
+  contents: read
 jobs:
   upload:
-    runs-on: macos-latest
+    runs-on: ${{ inputs.runner || 'macos-15' }}
     timeout-minutes: 60
     defaults:
       run:
@@ -21,11 +31,12 @@ jobs:
       TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      KEY_P8: ${{ secrets.ASC_KEY_P8 }}
       BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - name: Check secrets
         working-directory: .
+        env:
+          KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: |
           for v in TEAM_ID KEY_ID ISSUER_ID KEY_P8; do [ -n "${!v}" ] || { echo "Missing secret for $v - see docs/IOS-APP.md"; exit 1; }; done
       - uses: actions/checkout@v5
@@ -34,27 +45,56 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: app/package-lock.json
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
+      - name: Xcode (newest stable on the runner)
+        run: |
+          x=$(ls -d /Applications/Xcode_*.app | grep -ivE 'beta|release_candidate|_rc' | sort -V | tail -1); echo "Using $x"
+          sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
       - run: npm ci
       - run: npm run sync:ios
       - name: API key
+        # The .p8 secret is given to this step only. Rebuild a clean PEM from it: copying the .p8 on an iPhone can shorten
+        # the dashes, split the BEGIN/END lines, add spaces or turn a zero into Ø. Only the base64 body matters.
+        working-directory: .
+        env:
+          KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: |
-          mkdir -p "$RUNNER_TEMP/keys"
-          printf '%s\n' "$KEY_P8" > "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8"
-      - name: Archive (signed automatically with the API key)
+          mkdir -p "$RUNNER_TEMP/keys"; K="$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8"
+          body=$(printf '%s' "$KEY_P8" | perl -CSD -0777 -pe 's/[\x{00D8}\x{00F8}]/0/g; s/[\x{2010}-\x{2015}\x{2212}\-\s]*(BEGIN|END)\s*PRIVATE\s*KEY[\x{2010}-\x{2015}\x{2212}\-\s]*/ /gi; s/[^A-Za-z0-9+\/=]//g')
+          echo "key body: ${#body} base64 characters (an App Store Connect key has about 200)"
+          { echo '-----BEGIN PRIVATE KEY-----'; printf '%s\n' "$body" | fold -w 64; echo '-----END PRIVATE KEY-----'; } > "$K"
+          openssl pkey -in "$K" -noout 2>/dev/null || { echo "::error::The ASC_KEY_P8 secret is not a readable private key. Re-copy the whole .p8 file into it (docs/IOS-APP.md)."; exit 1; }
+      - name: Check the API key and the app record with App Store Connect
+        working-directory: .
+        run: ruby .github/scripts/asc-preflight.rb "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" "$KEY_ID" "$ISSUER_ID" uk.co.crowsnest.app
+      - name: Clear old build certificates
+        # Each run makes an Apple Development certificate on its throwaway Mac and Apple caps them. Revokes only
+        # development certificates "Created via API" (made by earlier builds); never distribution ones.
+        working-directory: .
+        run: ruby .github/scripts/asc-dev-certs.rb "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" "$KEY_ID" "$ISSUER_ID"
+      - name: Archive
+        # No entitlements (location and background modes need none): the archive is unsigned and the app-store-connect
+        # export signs it with the API key, so no registered iPhone is needed. If entitlements are added later, the archive
+        # is signed automatically, which needs one registered iPhone (Certificates, IDs & Profiles > Devices).
         run: |
+          if grep -q CODE_SIGN_ENTITLEMENTS ios/App/App.xcodeproj/project.pbxproj; then
+            SIGN=(CODE_SIGN_STYLE=Automatic -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID")
+          else
+            SIGN=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="")
+          fi
+          set +e
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" archive \
-            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            MARKETING_VERSION="$(node -p "require('./package.json').version")" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID" \
-            2>&1 | tail -60
+            DEVELOPMENT_TEAM="$TEAM_ID" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            MARKETING_VERSION="$(node -p "require('./package.json').version")" "${SIGN[@]}" > "$RUNNER_TEMP/archive.log" 2>&1
+          code=$?; set -e
+          grep -E '(error|warning: .*sign)' "$RUNNER_TEMP/archive.log" | head -20 || true
+          tail -40 "$RUNNER_TEMP/archive.log"
+          if grep -q "maximum number of certificates" "$RUNNER_TEMP/archive.log"; then echo "::error::Too many development certificates. developer.apple.com > Certificates, IDs & Profiles > Certificates: revoke old 'Apple Development' ones (not Distribution). Then run this again."; fi
+          if grep -q "has no devices" "$RUNNER_TEMP/archive.log"; then echo "::error::Register your iPhone first: developer.apple.com > Certificates, IDs & Profiles > Devices > +. Then run this again."; fi
+          exit $code
       - name: Export and upload to App Store Connect (TestFlight)
         run: |
-          cat > "$RUNNER_TEMP/export.plist" <<EOF
+          cat > "$RUNNER_TEMP/upload.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
@@ -64,13 +104,19 @@ jobs:
             <key>signingStyle</key><string>automatic</string>
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict></plist>
-          EOF
+          PLIST
+          set -o pipefail
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/upload.plist" -exportPath "$RUNNER_TEMP/export" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID" \
             2>&1 | tail -40
           echo "Uploaded build $BUILD_NUMBER. It appears in App Store Connect > TestFlight after processing (10-30 min)."
+      - name: Revoke this run's certificate
+        # its private key goes with this Mac, so it can never be used again
+        if: always() && env.KEY_ID != ''
+        working-directory: .
+        run: '[ -f "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" ] && ruby .github/scripts/asc-dev-certs.rb "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" "$KEY_ID" "$ISSUER_ID" || true'
       - name: Remove the key
         if: always()
         run: rm -rf "$RUNNER_TEMP/keys"
