@@ -148,8 +148,8 @@ const fake = http.createServer((q, r) => {
   await page.goto(B + '/');
   await page.waitForFunction(() => /UK Met Office/.test(document.getElementById('windSub').textContent), null, { timeout: 15000 });
   ok(await page.getAttribute('#windCard', 'href') === '/wind.html', 'dashboard wind card opens the wind page');
-  const dash = await page.$eval('#windArrow span', e => e.style.transform);
-  ok(/rotate\(45deg\)/.test(dash), 'dashboard arrow also points downwind: ' + dash);
+  const dash = await page.$eval('#windPic svg', e => e.innerHTML);
+  ok(/rotate\(45\)/.test(dash), 'dashboard compass arrow also points downwind (rotate 45 for a SW wind)');
   ok(errs.length === 0, 'no page errors ' + errs.join('; '));
   await br.close(); fake.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASS');

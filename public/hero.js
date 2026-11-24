@@ -121,6 +121,19 @@
     return parts.join(' \u00b7 ');
   }
 
+  // Rest bars (dashboard, 24 Nov 2026): minutes of rest against the minimum, drawn on a scale that ends at 150% of the minimum, with a tick at
+  // the minimum. State by brightness and words, never colour alone: ok = tick, unknown = hatched + '?', below = red + words.
+  function setBar(id, mins, req, kind, minLabel) {
+    var box = $('rb' + id), f = $('rb' + id + 'F'), m = $('rb' + id + 'M'), n = $('rb' + id + 'N');
+    if (!box) return;
+    var max = req * 1.5;
+    f.style.width = Math.max(0, Math.min(100, mins / max * 100)) + '%'; m.style.left = (req / max * 100) + '%';
+    box.className = 'rbar' + (kind === 'breach' ? ' bad' : kind === 'gap' || kind === 'building' ? ' unk' : '');
+    $('rb' + id + 'V').textContent = fmtMin(mins);
+    n.textContent = kind === 'compliant' ? '\u2713 ' + fmtMin(mins - req) + ' above the ' + minLabel + ' minimum'
+      : kind === 'breach' ? '\u2717 ' + fmtMin(req - mins) + ' below the ' + minLabel + ' minimum'
+      : kind === 'building' ? '\u2026 record still building' : '? cannot be confirmed: unlogged time';
+  }
   function render() {
     $('heroLoad').style.display = st.loaded ? 'none' : '';
     $('heroSetup').style.display = st.loaded && !st.crewId ? '' : 'none';
@@ -139,17 +152,19 @@
     var ashore = isAshore();
     lab.textContent = rest ? 'RESTING' : work ? 'WORKING' : ashore ? 'ASHORE' : 'NOT LOGGING';
     $('heroDot').className = 'hdot' + (rest ? ' rest' : work ? ' work' : '');
+    $('heroGlyph').className = 'rglyph' + (rest ? ' rest' : work ? ' work' : '');
     $('btnRest').className = 'hbtn rest' + (rest ? ' active' : '');
     $('btnWork').className = 'hbtn work' + (work ? ' active' : '');
     $('btnRest').setAttribute('aria-pressed', rest ? 'true' : 'false');
     $('btnWork').setAttribute('aria-pressed', work ? 'true' : 'false');
     $('btnRestMain').textContent = rest ? 'RESTING' : 'TAP TO REST';
-    $('btnRestSub').textContent = rest ? 'current status' : work ? 'ends work now' : ashore ? 'after the first WORK tap' : 'start resting';
+    $('btnRestSub').textContent = rest ? 'current status' : work ? 'ends work now \u00b7 undo for 8 s' : ashore ? 'after the first WORK tap' : 'start resting';
     $('btnWorkMain').textContent = work ? 'WORKING' : 'TAP TO WORK';
-    $('btnWorkSub').textContent = work ? 'current status' : rest ? 'ends rest now' : ashore ? 'starts the voyage' : 'start working';
+    $('btnWorkSub').textContent = work ? 'current status' : rest ? 'ends rest now \u00b7 undo for 8 s' : ashore ? 'starts the voyage' : 'start working';
     $('heroSince').textContent = st.since ? 'since ' + fmtClock(st.since) : ashore ? 'first WORK tap starts the voyage' : 'tap a button to start the clock';
     var c = st.comp, e = st.eng, note = $('heroNote');
     var chipsOn = ashore ? 'none' : '';
+    $('rBars').style.display = ashore ? 'none' : '';
     ['chip24', 'chip7', 'chipGap'].forEach(function (id) { $(id).style.display = chipsOn; });
     $('btnEndVoy').style.display = (st.voy || st.qAfloat) && !st.qEnded ? '' : 'none';
     $('heroDecl').style.display = st.voy && st.voy.declarationDue && !ashore ? '' : 'none';
@@ -165,7 +180,8 @@
       fill.style.stroke = kindOf(e, 'rest24') === 'breach' ? '#F5B041' : '';
       $('heroRingTime').textContent = fmtMin(mins);
       setChip('chip24', kindOf(e, 'rest24')); setChip('chip7', kindOf(e, 'rest7d')); setChip('chipGap', kindOf(e, 'interval'));
-      if (note) note.textContent = noteFor(e);
+      setBar('24', e.rest24.loggedRestMinutes + (e.rest24.preDutyMinutes || 0), e.rest24.requiredMinutes, kindOf(e, 'rest24'), '10 h'); setBar('7', e.rest7d.loggedRestMinutes + (e.rest7d.preDutyMinutes || 0), e.rest7d.requiredMinutes, kindOf(e, 'rest7d'), '77 h');   // rest the verdict counts: logged + time before duty (PRE_DUTY)
+      if (note) { note.textContent = noteFor(e); note.className = 'hnote' + (kindOf(e, 'rest24') === 'compliant' && kindOf(e, 'rest7d') === 'compliant' && kindOf(e, 'interval') === 'compliant' ? '' : ' warn'); }
     } else if (c) {
       if (note) note.textContent = '';
       var mins = c.rest24Minutes, pct = Math.max(0, Math.min(1, mins / c.thresholds.min10h));
@@ -174,6 +190,7 @@
       fill.style.stroke = c.ok24 ? '' : '#F5B041';
       $('heroRingTime').textContent = fmtMin(mins);
       setChip('chip24', c.ok24); setChip('chip7', c.ok7); setChip('chipGap', c.okGap);
+      setBar('24', c.rest24Minutes, c.thresholds.min10h, c.ok24 ? 'compliant' : 'breach', '10 h'); setBar('7', c.rest7Minutes, c.thresholds.min77h, c.ok7 ? 'compliant' : 'breach', '77 h');
     }
     tick();
   }

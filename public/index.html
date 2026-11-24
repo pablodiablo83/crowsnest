@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#00154C">
 <title>Crow's Nest — Dashboard</title>
 <link rel="icon" type="image/png" href="/assets/icon.png?v=2">
 <link rel="apple-touch-icon" href="/assets/icon.png?v=2">
@@ -10,23 +11,40 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/dashboard.css?v=9">
+<link rel="stylesheet" href="/dash.css?v=1">
 <link rel="stylesheet" href="/wave.css?v=2">
 <script src="/net.js?v=1"></script>
 </head>
-<body>
-<div class="dwrap">
-  <header class="dheader">
-    <img src="/assets/icon.png?v=2" alt="" class="dicon">
-    <span class="dtitle">CrowsNest</span>
+<body class="dash">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+ <symbol id="i-work" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.6 2.6-2.4-.6-.6-2.4z"/></symbol>
+ <symbol id="i-rest" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+ <symbol id="i-wind" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h11a3 3 0 1 0-3-3"/><path d="M3 14h15a3 3 0 1 1-3 3"/><path d="M3 19h6"/></symbol>
+ <symbol id="i-tide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/><path d="M2 14c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/><path d="M2 19c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/></symbol>
+ <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 9.5 4 4 0 0 1 17.5 18z"/></symbol>
+ <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+ <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 17c6-1 2-8 8-9.3"/></symbol>
+ <symbol id="i-log" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M9 9h6M9 13h6"/></symbol>
+ <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+ <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+ <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></symbol>
+ <symbol id="i-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></symbol>
+ <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></symbol>
+ <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></symbol>
+ <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></symbol>
+ <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></symbol>
+ <symbol id="i-anchor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M12 7v14M7 11h10M4 15a8 8 0 0 0 16 0"/></symbol>
+</defs></svg>
+<div class="dapp">
+  <header class="dtop">
+    <span class="dlogo"><svg width="22" height="22" aria-hidden="true"><use href="#i-anchor"/></svg></span>
+    <span class="dbrand">Crow's Nest</span>
+    <span class="dclock" id="dClock" aria-label="Time"></span>
+    <button type="button" class="dpill" id="themeBtn" aria-pressed="false" aria-label="Night mode"><svg width="20" height="20" aria-hidden="true"><use href="#i-rest" id="themeIcon"/></svg><span id="themeTxt">Night</span></button>
   </header>
 
-  <form class="dagent" id="agentForm" autocomplete="off">
-    <input type="text" id="agentInput" placeholder="Ask or tell Crow's Nest…" enterkeyhint="send" aria-label="Assistant">
-    <button type="submit" aria-label="Send">&#10148;</button>
-  </form>
-  <div class="dagent-reply" id="agentReply" style="display:none;"></div>
-
-  <section class="hero" id="hero" aria-label="Hours of rest">
+  <main class="dmain" id="dmain">
+  <section class="hero rail" id="hero" aria-label="Hours of rest">
     <div id="heroLoad" class="cn-wave" role="status" aria-label="Loading"></div>
     <div id="heroSetup" style="display:none;">
       <div class="dlabel">Hours of Rest</div>
@@ -34,86 +52,79 @@
       <div class="drow"><input type="text" id="heroNewName" placeholder="Your name" autocomplete="off"><button type="button" id="heroAddBtn">Start</button></div>
     </div>
     <div id="heroMain" style="display:none;">
-      <div class="hrow">
-        <div class="hring">
-          <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="dring-track"/><circle cx="60" cy="60" r="52" class="dring-fill" id="heroRingFill"/></svg>
-          <div class="hring-c"><span id="heroRingTime">&mdash;</span><span class="hring-l">REST 24H</span></div>
-        </div>
-        <div class="hinfo">
-          <div class="hname" id="heroName">&nbsp;</div>
+      <div class="rstate">
+        <div class="rglyph" id="heroGlyph" aria-hidden="true"><svg class="g-work" width="40" height="40"><use href="#i-work"/></svg><svg class="g-rest" width="40" height="40"><use href="#i-rest"/></svg></div>
+        <div class="rtxt">
+          <div class="rname" id="heroName">&nbsp;</div>
           <div class="hstate"><span class="hdot" id="heroDot"></span><span id="heroState">&mdash;</span></div>
           <div class="htimer" id="heroTimer">&mdash;</div>
           <div class="hsince" id="heroSince">&nbsp;</div>
         </div>
       </div>
       <div class="hbtns">
-        <button type="button" class="hbtn rest" id="btnRest" aria-pressed="false"><span class="hb-main" id="btnRestMain">TAP TO REST</span><span class="hb-sub" id="btnRestSub"></span></button>
-        <button type="button" class="hbtn work" id="btnWork" aria-pressed="false"><span class="hb-main" id="btnWorkMain">TAP TO WORK</span><span class="hb-sub" id="btnWorkSub"></span></button>
+        <button type="button" class="hbtn rest" id="btnRest" aria-pressed="false"><svg class="hb-ic" width="44" height="44" aria-hidden="true"><use href="#i-rest"/></svg><span class="hb-main" id="btnRestMain">TAP TO REST</span><span class="hb-sub" id="btnRestSub"></span></button>
+        <button type="button" class="hbtn work" id="btnWork" aria-pressed="false"><svg class="hb-ic" width="44" height="44" aria-hidden="true"><use href="#i-work"/></svg><span class="hb-main" id="btnWorkMain">TAP TO WORK</span><span class="hb-sub" id="btnWorkSub"></span></button>
       </div>
+      <div class="rbars" id="rBars">
+        <div class="rbar" id="rb24"><div class="rbtop"><span class="tag" id="rb24L">Rest 24 h</span><b id="rb24V">&mdash;</b></div><div class="bar"><i id="rb24F"></i><b id="rb24M"></b></div><div class="rbnote" id="rb24N"></div></div>
+        <div class="rbar" id="rb7"><div class="rbtop"><span class="tag" id="rb7L">Rest 7 days</span><b id="rb7V">&mdash;</b></div><div class="bar"><i id="rb7F"></i><b id="rb7M"></b></div><div class="rbnote" id="rb7N"></div></div>
+      </div>
+      <div class="hnote" id="heroNote"></div>
       <div class="hvoy" id="heroVoyage"></div>
       <button type="button" class="hdecl" id="heroDecl" style="display:none;">Joining declaration outstanding — complete</button>
-      <div class="hchips">
+      <div class="hchips" hidden>
         <span class="hchip" id="chip24"><b>&#10003;</b>24h rest &ge;10h</span>
         <span class="hchip" id="chip7"><b>&#10003;</b>7d rest &ge;77h</span>
         <span class="hchip" id="chipGap"><b>&#10003;</b>Work gap &le;14h</span>
-        <a class="hdetails" href="/hours-of-rest.html">Details &rsaquo;</a>
       </div>
-      <div class="hnote" id="heroNote"></div>
-      <button type="button" class="hend" id="btnEndVoy" style="display:none;">End voyage</button>
+      <div class="hlinks"><a class="hdetails" href="/hours-of-rest.html">Hours of rest &rsaquo;</a><button type="button" class="hend" id="btnEndVoy" style="display:none;">End voyage</button></div>
       <div class="herr" id="heroErr" style="display:none;">No connection &mdash; showing last known status.</div>
+      <div hidden><svg viewBox="0 0 120 120"><circle id="heroRingFill" r="52"/></svg><span id="heroRingTime"></span></div>
     </div>
   </section>
 
-  <div class="dgrid">
-
-    <a class="dcard" href="#" id="weatherCard">
-      <div class="dlabel">Weather</div>
-      <div class="dicon-row" id="weatherIcon">—</div>
-      <div class="dbig" id="weatherTemp">—</div>
-      <div class="dsub" id="weatherSub">Getting location…</div>
-    </a>
-
-    <a class="dcard" href="/wind.html" id="windCard" aria-label="Wind forecast">
-      <div class="dlabel">Wind</div>
-      <div class="dicon-row" id="windArrow">—</div>
-      <div class="dbig" id="windSpeed">—</div>
-      <div class="dsub" id="windSub">Getting location…</div>
-    </a>
-
-    <a class="dcard" href="/tides.html" id="tidesCard" aria-label="Tides">
-      <div class="dlabel">Tides</div>
-      <svg viewBox="0 0 200 60" class="dtide-curve" id="tideSvg" aria-hidden="true"><path d="M0 40 Q 25 20 50 30 T 100 20 T 150 35 T 200 30" fill="none" stroke-width="3"/></svg>
-      <div class="dsub" id="tidesSub">Loading…</div>
-    </a>
-
-    <a class="dcard" href="/atlantic.html" id="atlCard" aria-label="Atlantic weather chart">
-      <div class="dlabel">Atlantic</div>
-      <div class="dbig">Weather chart</div>
-      <div class="dsub">Wind, sea, swell and rain by ARC zone, 10 days</div>
-    </a>
-
-    <div class="dcard" id="locCard" role="button" tabindex="0">
-      <div class="dlabel">Location</div>
-      <div class="dplace" id="locName">Getting position…</div>
-      <div class="dcoord" id="locDdm">—</div>
-      <div class="dsub" id="locDec"></div>
-      <div class="dsub" id="locMeta">Tap to copy</div>
+  <div class="dtiles" id="dtiles">
+    <div class="tile t-pos" id="locCard" role="button" tabindex="0" aria-label="Position. Tap to copy">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-pin"/></svg>Position<button type="button" class="locset" id="locSet">Set position</button></div>
+      <div class="pic" id="posPic"></div>
+      <div class="cap"><b id="locDdm">&mdash;</b><span id="locName">Getting position…</span><span id="locMeta">Tap to copy</span><span id="locDec" class="dnone"></span></div>
     </div>
 
-    <a class="dcard" href="/track.html" id="trackCard" aria-label="Voyage map">
-      <div class="dlabel">Voyage map</div>
-      <svg viewBox="0 0 200 60" class="dtrack-curve" id="trackSvg" aria-hidden="true"></svg>
-      <div class="dbig" id="trackBig">&mdash;</div>
-      <div class="dsub" id="trackSub">Loading&hellip;</div>
+    <a class="tile t-wind" href="/wind.html" id="windCard" aria-label="Wind forecast">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-wind"/></svg>Wind</div>
+      <div class="pic" id="windPic"></div>
+      <div class="cap"><b id="windSpeed">&mdash;</b><span id="windSub">Getting location…</span></div>
     </a>
 
-    <a class="dcard" href="/log.html" id="logCard">
-      <div class="dlabel">Log</div>
-      <div class="dbig" id="logCount">—</div>
-      <div class="dsub" id="logCountSub">entries today</div>
-      <div class="dsub dclamp" id="logLast">Loading…</div>
+    <a class="tile t-tides" href="/tides.html" id="tidesCard" aria-label="Tides">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-tide"/></svg>Tides</div>
+      <div class="pic" id="tidePic"></div>
+      <div class="cap"><b id="tidesBig">&mdash;</b><span id="tidesSub">Loading…</span></div>
     </a>
 
+    <a class="tile t-wx" href="#" id="weatherCard" aria-label="Weather">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-cloud"/></svg>Weather</div>
+      <div class="pic" id="wxPic"></div>
+      <div class="cap"><b id="weatherTemp">&mdash;</b><span id="weatherSub">Getting location…</span></div>
+    </a>
+
+    <a class="tile t-voy" href="/track.html" id="trackCard" aria-label="Voyage map">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-route"/></svg>Voyage</div>
+      <div class="pic" id="trackPic"></div>
+      <div class="cap"><b id="trackBig">&mdash;</b><span id="trackSub">Loading&hellip;</span></div>
+    </a>
+
+    <a class="tile t-atl" href="/atlantic.html" id="atlCard" aria-label="Atlantic weather chart">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-globe"/></svg>Atlantic</div>
+      <div class="pic" id="atlPic"></div>
+      <div class="cap"><b>Weather ahead</b><span>now and along your route</span></div>
+    </a>
+
+    <a class="tile t-log" href="/log.html" id="logCard">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-log"/></svg>Log</div>
+      <div class="pic" id="logPic"></div>
+      <div class="cap"><b><span id="logCount">&mdash;</span></b><span id="logCountSub">entries today</span><span class="dclamp dnone" id="logLast">Loading…</span></div>
+    </a>
   </div>
 
   <div class="dlocation-box" id="locationBox" style="display:none;">
@@ -124,10 +135,44 @@
       <button id="manualLocBtn">Use</button>
     </div>
   </div>
-
   <div hidden><i id="horRingFill"></i><i id="horRingCenter"></i><i id="horSub"></i></div>
-  <footer class="dfooter">Crow's Nest — self-hosted · <a href="/status.html">Status</a></footer>
+  </main>
+
+  <nav class="ddock" id="ddock" aria-label="Pages">
+    <div class="ditems">
+      <a href="/" class="on" aria-current="page"><svg width="30" height="30" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></a>
+      <a href="/hours-of-rest.html"><svg width="30" height="30" aria-hidden="true"><use href="#i-clock"/></svg><span>Hours</span></a>
+      <a href="/track.html"><svg width="30" height="30" aria-hidden="true"><use href="#i-route"/></svg><span>Map</span></a>
+      <a href="/tides.html" class="d-wide"><svg width="30" height="30" aria-hidden="true"><use href="#i-tide"/></svg><span>Tides</span></a>
+      <a href="/wind.html" class="d-wide"><svg width="30" height="30" aria-hidden="true"><use href="#i-wind"/></svg><span>Wind</span></a>
+      <a href="/atlantic.html"><svg width="30" height="30" aria-hidden="true"><use href="#i-globe"/></svg><span>Atlantic</span></a>
+      <a href="/log.html" class="d-wide"><svg width="30" height="30" aria-hidden="true"><use href="#i-log"/></svg><span>Log</span></a>
+      <a href="/passage.html" class="d-wide"><svg width="30" height="30" aria-hidden="true"><use href="#i-doc"/></svg><span>Passage</span></a>
+      <a href="/status.html" class="d-wide"><svg width="30" height="30" aria-hidden="true"><use href="#i-pulse"/></svg><span>Status</span></a>
+      <button type="button" class="d-narrow" id="moreBtn" aria-haspopup="dialog"><svg width="30" height="30" aria-hidden="true"><use href="#i-more"/></svg><span>More</span></button>
+    </div>
+    <button type="button" class="dmic" id="micBtn" aria-label="Assistant" aria-expanded="false"><svg width="30" height="30" aria-hidden="true"><use href="#i-mic"/></svg></button>
+  </nav>
 </div>
+
+<div class="dsheet" id="moreSheet" hidden role="dialog" aria-modal="true" aria-label="More pages">
+  <div class="dsheet-in"><div class="dsheet-h"><b>More</b><button type="button" id="moreClose" aria-label="Close">&times;</button></div>
+    <a href="/tides.html"><svg width="26" height="26" aria-hidden="true"><use href="#i-tide"/></svg>Tides</a>
+    <a href="/wind.html"><svg width="26" height="26" aria-hidden="true"><use href="#i-wind"/></svg>Wind</a>
+    <a href="/log.html"><svg width="26" height="26" aria-hidden="true"><use href="#i-log"/></svg>Log</a>
+    <a href="/passage.html"><svg width="26" height="26" aria-hidden="true"><use href="#i-doc"/></svg>Passage pack</a>
+    <a href="/status.html"><svg width="26" height="26" aria-hidden="true"><use href="#i-pulse"/></svg>Status</a>
+  </div>
+</div>
+
+<section class="dasst" id="asst" hidden aria-label="Assistant">
+  <form class="dagent" id="agentForm" autocomplete="off">
+    <input type="text" id="agentInput" placeholder="Ask or tell Crow's Nest…" enterkeyhint="send" aria-label="Assistant">
+    <button type="submit" aria-label="Send">&#10148;</button>
+  </form>
+  <div class="dchips"><button type="button" data-say="log me working">Log me working</button><button type="button" data-say="log me resting">Log me resting</button><button type="button" data-say="what's the weather here">Weather?</button><button type="button" data-say="how much rest have i had">My rest?</button><button type="button" data-say="help">Help</button></div>
+  <div class="dagent-reply" id="agentReply" style="display:none;"></div>
+</section>
 <div class="dmodal" id="declModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="declTitle">
   <div class="dcard2">
     <div class="dtitle" id="declTitle">Declaration on commencing duty</div>
@@ -154,9 +199,9 @@
   </div>
 </div>
 <div class="htoast" id="heroToast" style="display:none;" role="status"><span id="toastText"></span><button type="button" id="toastUndo">UNDO</button></div>
-<script src="/dashboard.js?v=13"></script>
+<script src="/dashpics.js?v=1"></script>
+<script src="/dashboard.js?v=14"></script>
 <script src="/outbox.js?v=1"></script>
-<script src="/hero.js?v=9"></script>
+<script src="/hero.js?v=10"></script>
+<script src="/dashui.js?v=1"></script>
 <script src="/native.js?v=1"></script>
-</body>
-</html>

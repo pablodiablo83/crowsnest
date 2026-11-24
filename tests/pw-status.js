@@ -32,7 +32,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: B });
   await ctx.addCookies([{ name: 'cn_sid', value: sid, url: B }]);
   const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(String(e)));
-  await pg.goto(B + '/'); ok(await pg.locator('.dfooter a[href="/status.html"]').count() === 1, 'dashboard footer links to Status');
+  await pg.goto(B + '/'); ok(await pg.locator('.ddock a[href="/status.html"]').count() === 1 && await pg.locator('#moreSheet a[href="/status.html"]').count() === 1, 'dashboard dock and More sheet link to Status');
   await pg.goto(B + '/status.html'); await pg.waitForSelector('#sList li[data-id]');
   ok(await pg.locator('#sList li[data-id]').count() === s.checks.length, 'one row per check');
   ok(/healthy|to check|failing/i.test(await pg.locator('#sOverall').innerText()), 'overall line: ' + await pg.locator('#sOverall').innerText());

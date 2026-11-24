@@ -28,14 +28,25 @@ async function getJson(url) {
 function setText(id, text) { $(id).innerHTML = text; }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
 
+// ---------- Pictures (dashpics.js) ----------
+const WMO_TEXT = c => c === 0 ? 'clear' : c <= 2 ? 'partly cloudy' : c === 3 ? 'overcast' : c <= 48 ? 'fog' : c <= 57 ? 'drizzle' : c <= 67 ? 'rain' : c <= 77 ? 'snow' : c <= 82 ? 'showers' : c <= 86 ? 'snow showers' : 'thunderstorm';
+// a picture: dimmed until real data has arrived, so an empty tile never looks like a reading
+function setPic(id, html, live) { const el = $(id); if (!el || !window.CNPics) return; el.innerHTML = html; el.style.opacity = live ? '' : '.35'; }
+function initPics() {
+  if (!window.CNPics) return;
+  setPic('windPic', CNPics.wind(null, 0), false); setPic('tidePic', CNPics.tide(null, []), false); setPic('wxPic', CNPics.weather(3), false);
+  setPic('trackPic', CNPics.voyage(null), false); setPic('atlPic', CNPics.atlantic(), true); setPic('logPic', CNPics.logbook(''), false);
+  drawPosition();
+}
+
 // ---------- Weather + wind ----------
 async function loadWeatherAndWind(lat, lon) {
   try {
     const d = await getJson(`/api/weather?lat=${lat}&lon=${lon}`);
     if (d.error) throw new Error(d.error);
-    setText('weatherIcon', WMO_ICON(d.weatherCode));
+    setPic('wxPic', CNPics.weather(d.weatherCode), true);
     setText('weatherTemp', `${Math.round(d.temperatureC)}&deg;C`);
-    setText('weatherSub', 'Open-Meteo forecast');
+    setText('weatherSub', WMO_TEXT(d.weatherCode));
   } catch (e) {
     setText('weatherSub', 'Weather unavailable');
   }
@@ -44,11 +55,11 @@ async function loadWeatherAndWind(lat, lon) {
     let m = ''; try { m = localStorage.getItem('cn_windModel') || ''; } catch (e) {}
     const w = await getJson(`/api/wind?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&days=1${m ? '&model=' + encodeURIComponent(m) : ''}`);
     const c = w.current || { kn: w.kn[0], dir: w.dir[0], gust: w.gust[0] };
-    setText('windArrow', ARROW(c.dir));
-    setText('windSpeed', `${Math.round(c.kn)}kn`);
-    setText('windSub', `from ${COMPASS(c.dir)}` + (c.gust != null ? ` &middot; gusts ${Math.round(c.gust)}kn` : '') + `<br>${esc(w.model.label)} &middot; tap for forecast`);
+    setPic('windPic', CNPics.wind(c.dir, c.kn), true);
+    setText('windSpeed', `${Math.round(c.kn)}<small style="font-size:.5em;color:var(--mu)"> kn</small> ${COMPASS(c.dir)}`);
+    setText('windSub', (c.gust != null ? `gusts ${Math.round(c.gust)} kn &middot; Force ${CNPics.force(c.kn)}` : `Force ${CNPics.force(c.kn)}`) + `<br><small style="opacity:.8">${esc(w.model.label)}</small>`);
   } catch (e) {
-    setText('windSub', 'Wind unavailable &middot; tap for forecast');
+    setText('windSub', 'Wind unavailable');
   }
 }
 
@@ -59,24 +70,16 @@ async function loadTides() {
     let port = '', fix = null; try { port = localStorage.getItem('cn_tidePort') || ''; fix = JSON.parse(localStorage.getItem('cn_fix') || 'null'); } catch (e) {}
     const q = port ? '?port=' + encodeURIComponent(port) : fix && isFinite(fix.lat) && isFinite(fix.lon) ? `?lat=${(+fix.lat).toFixed(3)}&lon=${(+fix.lon).toFixed(3)}` : '';
     const d = await getJson('/api/tides' + q);
-    if (d.failed) { setText('tidesSub', `${esc(d.port || 'Tides')}: gauge data could not be read. Open to retry.`); return; }
+    if (d.failed) { setText('tidesBig', '&mdash;'); setText('tidesSub', `${esc(d.port || 'Tides')}: gauge data could not be read. Open to retry.`); return; }
     if (d.analysing) { setText('tidesSub', `${esc(d.port || 'Nearest port')}: setting up (reading a year of gauge data)&hellip;`); setTimeout(loadTides, 15000); return; }
     if (!d.configured || d.error) { setText('tidesSub', 'Tide data unavailable'); return; }
     const fmt = iso => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     const next = (d.events || []).slice(0, 2);
     let place = null; try { place = JSON.parse(localStorage.getItem('cn_tidePlace') || 'null'); } catch (e) {}
     const label = place && place.port === port && place.name !== d.port ? `${esc(place.name)} <small>(${esc(d.port)})</small>` : esc(d.port);
-    setText('tidesSub', `${label}${d.now ? ` &middot; ${d.now.h.toFixed(1)}m ${d.now.rising ? '&uarr;' : '&darr;'}` : ''}<br>` +
-      next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM.toFixed(1)}m`).join('<br>'));
-    // the real curve: 2 h back to 12 h ahead, with a "now" tick
-    const c = d.curve || [];
-    if (c.length > 4) {
-      const t0 = c[0][0], t1 = c[c.length - 1][0], hs = c.map(p => p[1]), lo = Math.min(...hs) - 0.2, hi = Math.max(...hs) + 0.2;
-      const X = t => (t - t0) / (t1 - t0) * 200, Y = h => 56 - (h - lo) / (hi - lo) * 52;
-      const nx = X(Date.now()).toFixed(1);
-      $('tideSvg').innerHTML = `<path d="${c.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ')}" fill="none" stroke-width="3"/>` +
-        `<line x1="${nx}" x2="${nx}" y1="2" y2="58" stroke="#F5B041" stroke-width="2"/>`;
-    }
+    setPic('tidePic', CNPics.tide(d.now ? d.now.h : null, d.events || []), true);
+    setText('tidesBig', d.now ? `${d.now.h.toFixed(1)} m ${d.now.rising ? '&uarr;' : '&darr;'}` : '&mdash;');
+    setText('tidesSub', `${label}<br>` + next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM.toFixed(1)}m`).join('<br>'));
   } catch (e) {
     setText('tidesSub', 'Tide data unavailable');
   }
@@ -105,9 +108,10 @@ async function loadLogTile() {
     const d = await getJson(`/api/log?limit=1&since=${encodeURIComponent(midnight.toISOString())}`);
     setText('logCount', String(Number(d.today) || 0));
     setText('logCountSub', d.today === 1 ? 'entry today' : 'entries today');
-    if (!d.entries.length) { setText('logLast', 'Nothing logged yet &mdash; tap to start'); return; }
+    if (!d.entries.length) { setText('logLast', 'Nothing logged yet &mdash; tap to start'); setPic('logPic', CNPics.logbook(''), true); return; }
     const e = d.entries[0], t = new Date(e.ts);
     setText('logLast', `${p2(t.getHours())}:${p2(t.getMinutes())} &middot; ${esc(e.text)}`);
+    setPic('logPic', CNPics.logbook(`${p2(t.getHours())}:${p2(t.getMinutes())} ${e.text}`), true);
   } catch (e) {
     setText('logLast', 'Log unavailable');
   }
@@ -149,13 +153,27 @@ async function lookupPlace(f) {
   }
 }
 
+// the chart under the coordinates: the boat, the recent trail and the coast, in the dashboard colours
+function drawPosition() {
+  const el = $('posPic'); if (!el || !window.CNPics) return;
+  if (!fix) { el.innerHTML = CNPics.chart({ lat: 55.5, lon: -5.5, none: true }, [], el.clientWidth || 400, el.clientHeight || 300); el.style.opacity = '.35'; return; }
+  el.style.opacity = '';
+  el.innerHTML = CNPics.chart(fix, TRK && TRK.status && TRK.status.path ? TRK.status.path : [], el.clientWidth || 400, el.clientHeight || 300, fix.cog != null ? fix.cog : null);
+}
+function ddm1(v, pos, neg) {
+  let a = Math.abs(v), deg = Math.floor(a), min = Math.round((a - deg) * 600) / 10;
+  if (min >= 60) { deg++; min = 0; }
+  return `${String(deg).padStart(pos === 'N' ? 2 : 3, '0')}&deg;${min.toFixed(1).padStart(4, '0')}&prime;${v >= 0 ? pos : neg}`;
+}
 function showFix() {
-  setText('locDdm', `${ddm(fix.lat, 'N', 'S')}<br>${ddm(fix.lon, 'E', 'W')}`);
+  setText('locDdm', `${ddm1(fix.lat, 'N', 'S')} ${ddm1(fix.lon, 'E', 'W')}`);
   const mov = fix.sog != null && fix.sog >= 0.5 ? ` &middot; SOG ${fix.sog.toFixed(1)} kn${fix.cog != null ? ` &middot; COG ${String(Math.round(fix.cog)).padStart(3, '0')}&deg;` : ''}` : '';
   setText('locDec', `${fix.lat.toFixed(5)}, ${fix.lon.toFixed(5)}${mov}`);
   const src = fix.source === 'gps' ? 'GPS' : fix.source === 'manual' ? 'Manual' : 'Last known';
   const acc = fix.acc ? ` &plusmn;${Math.round(fix.acc)} m` : '';
-  setText('locMeta', `${src}${acc} &middot; ${ageText(fix.ts)} &middot; tap to copy`);
+  setText('locMeta', `${src}${acc} &middot; ${ageText(fix.ts)}${mov}`);
+  drawPosition();
+  if (window.CNPics && !CNPics.coastReady()) CNPics.loadCoast().then(c => { if (c) drawPosition(); });
 }
 
 function setFix(lat, lon, acc, source, extra) {
@@ -175,10 +193,9 @@ function noFix() {
     showFix(); setText('locName', 'Last known position'); lookupPlace(fix);
     lastWeatherAt = Date.now(); loadWeatherAndWind(fix.lat, fix.lon);
   } else if (!fix) {
-    setText('locName', 'No position fix'); setText('locDdm', '—'); setText('locMeta', 'Enter it below');
+    setText('locName', 'No position fix'); setText('locDdm', '—'); setText('locMeta', 'Tap “Set position” to enter it');
     setText('weatherSub', 'Needs a position'); setText('windSub', 'Needs a position');
   }
-  $('locationBox').style.display = 'block';
 }
 
 let fixing = false;
@@ -203,6 +220,7 @@ function sameSpot(f) {
   return fix && Math.abs(fix.lat - f.lat) < 0.005 && Math.abs(fix.lon - f.lon) < 0.005;
 }
 
+$('locSet').addEventListener('click', e => { e.stopPropagation(); const b = $('locationBox'); b.style.display = b.style.display === 'block' ? 'none' : 'block'; if (b.style.display === 'block') $('manualLat').focus(); });
 $('manualLocBtn').addEventListener('click', () => {
   const lat = parseFloat($('manualLat').value), lon = parseFloat($('manualLon').value);
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
@@ -221,7 +239,8 @@ async function copyFix() {
   catch (e) { setText('locMeta', 'Copy not available'); }
   setTimeout(() => { if (fix) showFix(); }, 1500);
 }
-$('locCard').addEventListener('click', copyFix);
+$('locCard').addEventListener('click', e => { if (e.target.closest('a')) return; copyFix(); });
+if (window.ResizeObserver && $('posPic')) { let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(drawPosition, 120); }).observe($('posPic')); }
 $('locCard').addEventListener('keydown', e => { if (e.key === 'Enter') copyFix(); });
 
 
@@ -292,18 +311,7 @@ document.addEventListener('cn:tap', () => { recordNow('tap'); });
 document.addEventListener('cn:voyage-end', async () => { await recordNow('end'); loadTrackTile(); });
 window.addEventListener('online', () => { flushQueue(); });
 
-function drawPath(path, live) {
-  const svg = $('trackSvg');
-  if (!path || path.length < 2) { svg.innerHTML = '<path class="tnone" d="M8 40 Q 50 14 100 30 T 192 20"/>'; return; }
-  const lat0 = path.reduce((a, p) => a + p[0], 0) / path.length, k = Math.cos(lat0 * Math.PI / 180);
-  const xs = path.map(p => p[1] * k), ys = path.map(p => -p[0]);
-  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-  const w = 184, h = 44, sc = Math.min(w / ((maxX - minX) || 1e-6), h / ((maxY - minY) || 1e-6));
-  const ox = 8 + (w - (maxX - minX) * sc) / 2, oy = 8 + (h - (maxY - minY) * sc) / 2;
-  const pts = path.map((p, i) => [ox + (xs[i] - minX) * sc, oy + (ys[i] - minY) * sc]);
-  const f = n => n.toFixed(1), last = pts[pts.length - 1], first = pts[0];
-  svg.innerHTML = `<polyline points="${pts.map(p => f(p[0]) + ',' + f(p[1])).join(' ')}"/><circle class="tstart" cx="${f(first[0])}" cy="${f(first[1])}" r="3.5"/><circle class="tend" cx="${f(last[0])}" cy="${f(last[1])}" r="4.5"/>`;
-}
+function drawPath(path) { setPic('trackPic', CNPics.voyage(path), !!(path && path.length > 1)); drawPosition(); }
 async function loadTrackTile() {
   try {
     const s = await getJson('/api/track/status');
@@ -313,7 +321,7 @@ async function loadTrackTile() {
     card.classList.remove('fresh');
     drawPath(s.path);
     if (!s.configured || !v) { setText('trackBig', '&mdash;'); setText('trackSub', 'Starts with your first voyage'); return; }
-    setText('trackBig', `${v.distanceNm.toFixed(1)}<span style="font-size:15px;font-weight:700;"> NM</span>`);
+    setText('trackBig', `${v.distanceNm.toFixed(1)}<span style="font-size:.55em;font-weight:700;color:var(--mu)"> nm</span>`);
     if (s.voyageOpen) {
       const when = s.lastFix ? `last fix ${ageText(Date.parse(s.lastFix.ts))}` : 'waiting for the first fix';
       setText('trackSub', s.intervalMin ? `${v.fixes} fix${v.fixes === 1 ? '' : 'es'} &middot; ${when}` : `Recording is off &middot; ${when}`);
@@ -364,6 +372,7 @@ $('agentForm').addEventListener('submit', ev => {
 });
 
 // ---------- start ----------
+initPics();
 requestFix();
 setInterval(requestFix, 60000);
 setInterval(() => { if (fix) showFix(); }, 30000);
