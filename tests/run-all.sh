@@ -36,6 +36,7 @@ if [ "${1:-}" != "--no-browser" ]; then
   fresh && run pw-atlantic node tests/pw-atlantic.js "$TMP"
   fresh IOC_BASE=http://127.0.0.1:8094 GEOCODE_BASE=http://127.0.0.1:8094 UKHO_BASE=http://127.0.0.1:8094/ukho NO_TIDE_WARMUP=1 && run pw-tides node tests/pw-tides.js "$TMP"
   fresh IOC_BASE=http://127.0.0.1:8095 OPEN_METEO_BASE=http://127.0.0.1:8095 INSHORE_URL=http://127.0.0.1:8095/inshore INSHORE_MIN_AREAS=3 NO_TIDE_WARMUP=1 && run pw-passage node tests/pw-passage.js "$TMP"
+  fresh NO_TIDE_WARMUP=1 && run pw-status node tests/pw-status.js "$TMP"
   fresh NO_TIDE_WARMUP=1 && run sec-checks node tests/sec-checks.js "$TMP"
 fi
 exit $fail

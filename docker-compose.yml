@@ -10,6 +10,8 @@ services:
       - "127.0.0.1:8090:8080"
     volumes:
       - ./data:/app/data
+      # read-only, so the status page can show which commit is running (health.js reads HEAD and the ref only)
+      - ./.git:/app/.git:ro
     environment:
       - PORT=8080
       - DATA_DIR=/app/data

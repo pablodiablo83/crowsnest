@@ -135,3 +135,4 @@ body{margin:0;background:var(--dbg);color:var(--dtext);font-family:'Lato',-apple
 .dtrack-curve .tnone{stroke:rgba(255,255,255,.22);stroke-width:2;stroke-dasharray:3 5;fill:none;}
 #trackCard.fresh{border-color:#F5B041;}
 #trackCard:focus-visible{outline:3px solid #7FD3E6;outline-offset:2px;}
+.dfooter a{color:var(--dteal);font-weight:700;font-size:13px;display:inline-block;padding:12px 8px;}

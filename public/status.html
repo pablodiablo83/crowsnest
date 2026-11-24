@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#00154C">
+<title>Status - Crow's Nest</title>
+<link rel="icon" type="image/png" href="/assets/icon.png?v=2">
+<link rel="apple-touch-icon" href="/assets/icon.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/hor.css?v=3">
+<style>
+/* Status page (24 Nov 2026): a summary of what is healthy, then a plain-text summary to copy (with any errors). */
+.s-wrap{max-width:760px;margin:0 auto;padding:14px 16px calc(60px + env(safe-area-inset-bottom))}
+.s-sub{color:var(--muted);font-size:14px;margin-top:2px}
+.s-top{display:flex;align-items:center;gap:10px;margin:6px 0 12px;flex-wrap:wrap}
+.s-overall{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.s-overall b{font-size:20px;font-weight:900;line-height:1.2}
+.s-dot{width:14px;height:14px;border-radius:50%;flex:none;background:#8A96A8}
+.s-dot.ok{background:#3FCB7A}.s-dot.warn{background:var(--amber)}.s-dot.bad{background:var(--coral)}.s-dot.idle{background:transparent;border:2px solid rgba(255,255,255,.35)}
+.s-big{width:20px;height:20px}
+.s-list{list-style:none;margin:0;padding:0}
+.s-list li{display:grid;grid-template-columns:14px minmax(0,1fr);gap:4px 12px;align-items:start;padding:12px 2px;border-bottom:1px solid var(--line)}
+.s-list li:last-child{border-bottom:0}
+.s-list .s-dot{margin-top:4px}
+.s-name{font-weight:900;font-size:16px;display:flex;justify-content:space-between;gap:8px}
+.s-name em{font-style:normal;font-size:12px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.s-name em.ok{color:#8FE3B0}.s-name em.warn{color:var(--amber)}.s-name em.bad{color:var(--coral)}
+.s-sum{grid-column:2;font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+.s-det{grid-column:2;font-size:13px;color:var(--amber-l);overflow-wrap:anywhere}
+.s-texthead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:22px 2px 8px}
+.s-texthead h2{font-size:18px;font-weight:900;margin:0}
+.s-copy{min-height:44px;padding:0 18px}
+pre.s-text{margin:0;background:#061033;border:1px solid var(--line);border-radius:14px;padding:14px;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#E9EFF2;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.s-msg{color:var(--muted);padding:20px 2px}
+.s-refresh{min-height:44px;padding:0 16px}
+</style>
+<script src="/net.js?v=1"></script>
+</head>
+<body>
+<div class="s-wrap">
+  <header class="h-top">
+    <a class="h-back" href="/" aria-label="Back to dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Dashboard</a>
+    <div class="h-title">
+      <h1>Status</h1>
+      <p class="s-sub" id="sAt">Checking…</p>
+    </div>
+  </header>
+  <div class="s-top">
+    <div class="s-overall" id="sOverall" role="status" aria-live="polite"><span class="s-dot s-big"></span><b>Checking…</b></div>
+    <button type="button" class="h-btn ghost s-refresh" id="sRefresh">Refresh</button>
+  </div>
+  <section class="h-card" aria-label="Checks"><ul class="s-list" id="sList"><li class="s-msg">Loading…</li></ul></section>
+  <div class="s-texthead"><h2 id="sTextH">Plain-text summary</h2><button type="button" class="h-btn primary s-copy" id="sCopy" disabled>Copy</button></div>
+  <pre class="s-text" id="sText" aria-labelledby="sTextH">…</pre>
+</div>
+<script src="/status.js"></script>
+</body>
+</html>

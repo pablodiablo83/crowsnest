@@ -1,6 +1,7 @@
 // Crow's Nest — Hours of Rest
 // Minimal self-hosted backend: Express + SQLite (file-based, no external DB).
 
+const health = require('./health.js');   // first: keeps recent errors for the status page
 const express = require('express');
 const Database = require('better-sqlite3');
 const path = require('path');
@@ -1191,6 +1192,7 @@ app.get('/api/weather', async (req, res) => {
     if (!r.ok) throw new Error(`upstream ${r.status}`);
     const d = await r.json();
     const c = d.current || {};
+    health.note('weather', true);
     res.json({
       source: 'Open-Meteo forecast model — not an official marine/shipping forecast',
       fetchedAt: new Date().toISOString(),
@@ -1201,6 +1203,7 @@ app.get('/api/weather', async (req, res) => {
       windGustsKn: c.wind_gusts_10m
     });
   } catch (e) {
+    health.note('weather', false, e);
     res.status(502).json({ error: 'weather fetch failed', detail: String(e.message || e) });
   }
 });
@@ -1257,7 +1260,9 @@ app.get('/api/wind', async (req, res) => {
         windFor(x.id, lat, lon, days).then(d => ({ model: x, t: d.t, kn: d.kn, dir: d.dir, gust: d.gust }), e => ({ model: x, error: String(e.message || e) }))));
     }
     res.json(out);
+    health.note('wind', true);
   } catch (e) {
+    health.note('wind', false, e);
     res.status(502).json(Object.assign(base, { error: 'wind forecast unavailable', detail: String(e.message || e) }));
   }
 });
@@ -1335,8 +1340,10 @@ async function inshoreForecast() {
     data.fetchedAt = new Date().toISOString();
     inshoreMem = { at: Date.now(), data };
     setSetting('inshoreLast', JSON.stringify(data));
+    health.note('inshore', true);
     return { data, stale: false };
   } catch (e) {
+    health.note('inshore', false, e);
     const last = inshoreMem ? inshoreMem.data : (() => { try { return JSON.parse(getSetting('inshoreLast', '') || 'null'); } catch (x) { return null; } })();
     if (last) return { data: last, stale: true, error: String(e.message || e) };
     throw e;
@@ -1355,14 +1362,84 @@ app.get('/api/inshore', async (req, res) => {
 });
 
 // ---- tides (tides.js: standard ports from open gauge data + the tide engine; secondary ports by the Admiralty method)
-require('./tides.js')(app, { db, auditRaw, getSetting, setSetting });
+const tidesMod = require('./tides.js')(app, { db, auditRaw, getSetting, setSetting });
 
 // ---- Atlantic weather (atlantic-wx.js): the /atlantic.html forecast, refreshed from Open-Meteo every 6 h
-require('./atlantic-wx.js')(app, { DATA_DIR, curDevice });
+const atlanticMod = require('./atlantic-wx.js')(app, { DATA_DIR, curDevice });
 
 require('./extra')(app, db);
 
 app.get('/healthz', (req, res) => res.send('ok'));
+
+// ---- status page (/status.html; 24 Nov 2026): one check per part, a plain-text summary to copy, recent errors. Master only.
+const COMMIT = health.commit(__dirname);
+function statusReport() {
+  const now = Date.now(), ago = ms => { if (ms == null) return 'never'; const m = Math.round((now - ms) / 60000); return m < 1 ? 'just now' : m < 90 ? m + ' min ago' : m < 48 * 60 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+  const dur = ms => { const m = Math.floor(ms / 60000); return m < 60 ? m + ' min' : m < 2880 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : Math.floor(m / 1440) + ' days'; };
+  const n = (sql, ...a) => { try { return db.prepare(sql).get(...a).n; } catch (e) { return null; } };
+  const checks = [], add = (id, name, state, summary, detail) => checks.push({ id, name, state, summary, detail: detail || null });
+  add('server', 'Server', 'ok', `up ${dur(now - health.started)} · ${COMMIT ? 'commit ' + COMMIT : 'commit unknown'} · node ${process.version}`);
+  let qc = 'not run';
+  try { qc = db.prepare('PRAGMA quick_check').pluck().get(); } catch (e) { qc = String(e.message); }
+  let size = 0; try { size = fs.statSync(path.join(DATA_DIR, 'crowsnest.db')).size; } catch (e) {}
+  add('db', 'Database', qc === 'ok' ? 'ok' : 'bad', `${(size / 1048576).toFixed(1)} MB · integrity ${qc === 'ok' ? 'ok' : 'FAILED'}`, qc === 'ok' ? null : qc);
+  try {
+    const f = fs.statfsSync(DATA_DIR), free = f.bavail * f.bsize, gb = free / 1073741824;
+    add('disk', 'Disk', gb < 0.2 ? 'bad' : gb < 1 ? 'warn' : 'ok', `${gb.toFixed(1)} GB free for data and backups`);
+  } catch (e) { add('disk', 'Disk', 'warn', 'free space unknown', String(e.message)); }
+  const crew = n(`SELECT COUNT(*) n FROM crew WHERE deleted_at IS NULL`), open = n(`SELECT COUNT(*) n FROM voyages WHERE end IS NULL AND deleted_at IS NULL`);
+  const entries = n(`SELECT COUNT(*) n FROM entries WHERE deleted_at IS NULL`);
+  add('hor', 'Hours of rest', 'ok', `${crew ?? '?'} crew · ${open ?? '?'} open voyage${open === 1 ? '' : 's'} · ${entries ?? '?'} entries`);
+  const users = n(`SELECT COUNT(*) n FROM users WHERE disabled_at IS NULL`), sess = n(`SELECT COUNT(*) n FROM sessions WHERE expires_at > ?`, new Date().toISOString());
+  add('auth', 'Sign-in', users ? 'ok' : 'warn', `${users ?? '?'} account${users === 1 ? '' : 's'} · ${sess ?? '?'} signed-in session${sess === 1 ? '' : 's'}`);
+  let dev = null; try { dev = db.prepare(`SELECT COUNT(*) n, MAX(last_seen) seen FROM devices WHERE revoked_at IS NULL`).get(); } catch (e) {}
+  add('phones', 'Phones', dev && dev.n ? 'ok' : 'idle', dev && dev.n ? `${dev.n} paired · last seen ${ago(dev.seen ? Date.parse(dev.seen) : null)}` : 'no phones paired');
+  let pos = null; try { pos = db.prepare(`SELECT ts, source FROM positions WHERE deleted_at IS NULL ORDER BY ts DESC LIMIT 1`).get(); } catch (e) { try { pos = db.prepare(`SELECT ts, source FROM positions ORDER BY ts DESC LIMIT 1`).get(); } catch (x) {} }
+  if (!pos) add('position', 'Position', 'idle', 'no position recorded yet');
+  else { const t = Date.parse(pos.ts); add('position', 'Position', open && now - t > 24 * 3600e3 ? 'warn' : 'ok', `last fix ${ago(t)} (${pos.source || 'unknown source'})`); }
+  const a = atlanticMod.status();
+  const aAge = a.ageHours == null ? null : a.ageHours;
+  add('atlantic', 'Atlantic forecast', a.source !== 'server' ? (aAge != null && aAge < 24 ? 'warn' : 'bad') : aAge < 8 ? 'ok' : aAge < 24 ? 'warn' : 'bad',
+    `${a.source === 'server' ? 'live copy' : a.source === 'bundled' ? 'bundled snapshot only' : 'none'} · forecast ${a.fetched ? a.fetched.replace('T', ' ').replace('Z', ' UTC') : '–'} (${aAge ?? '?'} h old) · ${a.steps ?? 0} steps`,
+    a.lastError ? 'last refresh failed: ' + a.lastError : null);
+  const HOME = process.env.TIDE_HOME_PORT || 'mill';
+  let tide = []; try { tide = db.prepare(`SELECT code, analysed_at FROM tide_stations WHERE analysed_at IS NOT NULL`).all(); } catch (e) {}
+  const failed = [...tidesMod.jobs.entries()].filter(([, j]) => j && j.state === 'failed');
+  const home = tide.find(t => t.code === HOME);
+  add('tides', 'Tides', !tide.length ? (failed.length ? 'bad' : 'idle') : failed.length || !home ? 'warn' : now - Date.parse(home.analysed_at) > 40 * 86400e3 ? 'warn' : 'ok',
+    tide.length ? `${tide.length} port${tide.length === 1 ? '' : 's'} analysed · home port ${home ? 'analysed ' + ago(Date.parse(home.analysed_at)) : 'not analysed'}` : 'no ports analysed yet',
+    failed.length ? failed.map(([c, j]) => `${c}: ${j.error || 'failed'}`).join('; ') : null);
+  const ukhoKey = process.env.UKHO_KEY || getSetting('ukhoKey', '');
+  add('ukho', 'UKHO tides', ukhoKey ? 'ok' : 'idle', ukhoKey ? `connected (${process.env.UKHO_TIER || getSetting('ukhoTier', 'discovery')} tier)` : 'not connected (optional)');
+  const svc = (id, name, what) => {
+    const m = health.marks.get(id);
+    if (!m) return add(id, name, 'idle', `not used since the server started (${what})`);
+    const state = m.ok ? 'ok' : m.lastOk ? 'warn' : 'bad';
+    add(id, name, state, m.ok ? `working · last answer ${ago(m.at)}` : `last call failed ${ago(m.at)}${m.lastOk ? ' · worked ' + ago(m.lastOk) : ''}`, m.ok ? null : m.error);
+  };
+  svc('wind', 'Wind forecast', 'Wind page');
+  svc('weather', 'Weather tile', 'dashboard');
+  svc('inshore', 'Inshore forecast', 'Met Office page');
+  const recent = health.errors.filter(e => now - e.at < 24 * 3600e3);
+  add('errors', 'Server errors', recent.length ? 'warn' : 'ok', recent.length ? `${recent.length} in the last 24 h` : 'none in the last 24 h');
+  const bad = checks.filter(c => c.state === 'bad').length, warn = checks.filter(c => c.state === 'warn').length;
+  const iso = d => new Date(d).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+  const L = [`CROW'S NEST STATUS  ${iso(now)}`, `commit ${COMMIT || 'unknown'} · up ${dur(now - health.started)} · node ${process.version}`,
+    `overall: ${bad ? bad + ' failing' + (warn ? ', ' + warn + ' to check' : '') : warn ? warn + ' to check' : 'all healthy'}`, ''];
+  const tag = { ok: 'OK  ', warn: 'WARN', bad: 'FAIL', idle: '–   ' };
+  // one line per check that wraps cleanly on a phone; any problem detail on the next line
+  for (const c of checks) { L.push(`${tag[c.state]}  ${c.name}: ${c.summary}`); if (c.detail) L.push(`      ↳ ${c.detail}`); }
+  L.push('', `ERRORS (last 24 h): ${recent.length || 'none'}`);
+  for (const e of recent.slice(-15).reverse()) L.push(`${new Date(e.at).toISOString().slice(11, 16)}  ${e.text}`);
+  return { at: new Date(now).toISOString(), commit: COMMIT, overall: bad ? 'bad' : warn ? 'warn' : 'ok', checks, errors: recent.slice(-15).reverse().map(e => ({ at: new Date(e.at).toISOString(), text: e.text })), text: L.join('\n') };
+}
+app.get('/api/status', (req, res) => {
+  const d = curDevice();
+  if (d && d.role !== 'master') return res.status(403).json({ error: 'only the master can see the status page' });
+  res.set('Cache-Control', 'no-store');   // never cached on a phone: it describes the server right now
+  res.json(statusReport());
+});
+
 
 const PORT = process.env.PORT || 8080;
 // last: unexpected errors answer with a short message, never a stack trace
