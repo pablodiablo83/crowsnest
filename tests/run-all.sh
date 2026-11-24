@@ -28,6 +28,7 @@ fresh && run api-tapqueue node tests/api-tapqueue.js
 fresh && run api-posmove node tests/api-posmove.js
 fresh && run api-v1 node tests/api-v1.js
 fresh OPEN_METEO_BASE=http://127.0.0.1:8096 OPEN_METEO_MARINE_BASE=http://127.0.0.1:8096 && run api-atlantic node tests/api-atlantic.js
+fresh OPEN_METEO_BASE=http://127.0.0.1:8097 OPEN_METEO_MARINE_BASE=http://127.0.0.1:8097 INSHORE_URL=http://127.0.0.1:8097/x IOC_BASE=http://127.0.0.1:8097 && run api-assistant node tests/api-assistant.js
 if [ "${1:-}" != "--no-browser" ]; then
   fresh && run pw-login node tests/pw-login.js "$TMP"
   fresh && run pw-tapqueue node tests/pw-tapqueue.js "$TMP"
@@ -36,6 +37,7 @@ if [ "${1:-}" != "--no-browser" ]; then
   fresh && run pw-atlantic node tests/pw-atlantic.js "$TMP"
   fresh IOC_BASE=http://127.0.0.1:8094 GEOCODE_BASE=http://127.0.0.1:8094 UKHO_BASE=http://127.0.0.1:8094/ukho NO_TIDE_WARMUP=1 && run pw-tides node tests/pw-tides.js "$TMP"
   fresh IOC_BASE=http://127.0.0.1:8095 OPEN_METEO_BASE=http://127.0.0.1:8095 INSHORE_URL=http://127.0.0.1:8095/inshore INSHORE_MIN_AREAS=3 NO_TIDE_WARMUP=1 && run pw-passage node tests/pw-passage.js "$TMP"
+  fresh NO_TIDE_WARMUP=1 && run pw-assistant node tests/pw-assistant.js "$TMP"
   fresh NO_TIDE_WARMUP=1 && run pw-status node tests/pw-status.js "$TMP"
   fresh NO_TIDE_WARMUP=1 && run sec-checks node tests/sec-checks.js "$TMP"
 fi

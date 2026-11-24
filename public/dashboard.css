@@ -136,3 +136,10 @@ body{margin:0;background:var(--dbg);color:var(--dtext);font-family:'Lato',-apple
 #trackCard.fresh{border-color:#F5B041;}
 #trackCard:focus-visible{outline:3px solid #7FD3E6;outline-offset:2px;}
 .dfooter a{color:var(--dteal);font-weight:700;font-size:13px;display:inline-block;padding:12px 8px;}
+
+/* assistant replies */
+.dagent-reply{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;color:var(--dtext);line-height:1.45}
+.dagent-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.dagent-act{min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--dline);background:rgba(255,255,255,.08);color:#fff;font:700 15px Lato,system-ui,sans-serif}
+.dagent-act.confirm{background:#F5B041;border-color:#F5B041;color:#00154C}
+.dagent-act.open{border-color:var(--dteal);color:#7FD3E6}

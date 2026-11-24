@@ -327,20 +327,40 @@ async function loadTrackTile() {
   }
 }
 
-// ---------- AI bar (holding) ----------
-$('agentForm').addEventListener('submit', async ev => {
-  ev.preventDefault();
-  const text = $('agentInput').value.trim();
-  if (!text) return;
-  const box = $('agentReply');
-  box.style.display = 'block'; box.textContent = '…';
+// ---------- Assistant bar (assistant.js on the server) ----------
+// Replies are plain text; buttons: Do it / Cancel (plans), Undo (last change), Open (a page). Server text is never put in innerHTML.
+const agentBox = $('agentReply');
+function agentCtx() {
+  let crewId = null; try { crewId = localStorage.getItem('cn.crew'); } catch (e) {}
+  return { crewId, lat: fix ? fix.lat : null, lon: fix ? fix.lon : null };
+}
+function agentShow(d) {
+  agentBox.style.display = 'block'; agentBox.replaceChildren();
+  const t = document.createElement('div'); t.className = 'dagent-text'; t.textContent = d.reply || d.error || 'No reply.'; agentBox.appendChild(t);
+  const acts = (d.actions || []); if (!acts.length) return;
+  const row = document.createElement('div'); row.className = 'dagent-actions';
+  for (const a of acts) {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = a.label; b.className = 'dagent-act ' + a.kind;
+    b.onclick = () => { if (a.kind === 'open') location.href = a.url; else if (a.kind === 'confirm') agentSend({ confirm: a.token }); else if (a.kind === 'cancel') agentSend({ cancel: a.token }); else if (a.kind === 'undo') agentSend({ undo: true }); };
+    row.appendChild(b);
+  }
+  agentBox.appendChild(row);
+  const auto = acts.find(a => a.kind === 'open' && a.auto); if (auto) setTimeout(() => { location.href = auto.url; }, 400);
+}
+async function agentSend(payload) {
+  agentBox.style.display = 'block'; agentBox.textContent = '…';
   try {
-    const r = await fetch('/api/agent', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
-    });
-    const d = await r.json();
-    box.textContent = d.reply || d.error || 'No reply.';
-  } catch (e) { box.textContent = 'Could not reach the server.'; }
+    const r = await fetch('/api/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ tz: -new Date().getTimezoneOffset(), context: agentCtx() }, payload)) });
+    const d = await r.json().catch(() => ({}));
+    agentShow(r.ok || d.reply ? d : { reply: d.error || ('The server answered ' + r.status) });
+    if (d.changed) { loadHorSummary(); loadLogTile(); loadTrackTile(); }
+  } catch (e) { agentBox.textContent = e && e.offline ? 'No connection to the server. The assistant needs one.' : 'Could not reach the server.'; }
+}
+$('agentForm').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const text = $('agentInput').value.trim(); if (!text) return;
+  $('agentInput').value = ''; agentSend({ text });
 });
 
 // ---------- start ----------

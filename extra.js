@@ -1,5 +1,4 @@
-// Crow's Nest — dashboard extras: LOG, place-name lookup, AI bar placeholder
-const AI_URL = process.env.AI_URL || '';
+// Crow's Nest — dashboard extras: LOG, place-name lookup (the assistant bar is assistant.js)
 
 module.exports = function (app, db) {
   db.exec(`
@@ -72,15 +71,4 @@ module.exports = function (app, db) {
     }
   });
 
-  // AI bar: holding endpoint only. Real routing (rules, then model at AI_URL) comes later.
-  app.post('/api/agent', (req, res) => {
-    const text = String((req.body || {}).text || '').trim().slice(0, 500);
-    if (!text) return res.status(400).json({ error: 'text required' });
-    res.json({
-      ok: false,
-      status: 'coming_soon',
-      backend: AI_URL ? 'configured' : 'none',
-      reply: 'The assistant is not connected yet. Coming soon.'
-    });
-  });
 };

@@ -435,6 +435,7 @@ function crewAllowed(dev, method, p) {
     const r = db.prepare('SELECT crew_id FROM voyages WHERE id = ?').get(v[1]); return !!r && r.crew_id === own;
   }
   if (method === 'POST' && p === '/api/positions') return true;
+  if (method === 'POST' && p === '/api/agent') return true;   // the assistant acts with this same device token, so it can do no more than the phone itself
   if (method !== 'GET') return false;
   return ['/api/vessel', '/api/crew', '/api/me', '/api/time', '/api/dashboard/settings', '/api/dashboard/hor-summary', '/api/settings/pre-voyage',
     '/api/positions/latest', '/api/weather', '/api/wind', '/api/inshore', '/api/tides'].includes(p) || /^\/api\/(track|tides)\//.test(p);
@@ -1185,7 +1186,7 @@ app.get('/api/weather', async (req, res) => {
     return res.status(400).json({ error: 'lat and lon query params required' });
   }
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    const url = `${OPEN_METEO}/v1/forecast?latitude=${lat}&longitude=${lon}` +
       `&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m` +
       `&wind_speed_unit=kn&timezone=auto`;
     const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
@@ -1367,6 +1368,9 @@ const tidesMod = require('./tides.js')(app, { db, auditRaw, getSetting, setSetti
 // ---- Atlantic weather (atlantic-wx.js): the /atlantic.html forecast, refreshed from Open-Meteo every 6 h
 const atlanticMod = require('./atlantic-wx.js')(app, { DATA_DIR, curDevice });
 
+// ---- assistant (assistant.js): plain-language requests -> the app's own API, as the caller; coverage gated by tests/api-assistant.js
+const assistantMod = require('./assistant.js')(app, { port: () => PORT, curDevice });
+
 require('./extra')(app, db);
 
 app.get('/healthz', (req, res) => res.send('ok'));
@@ -1421,6 +1425,7 @@ function statusReport() {
   svc('weather', 'Weather tile', 'dashboard');
   svc('inshore', 'Inshore forecast', 'Met Office page');
   const recent = health.errors.filter(e => now - e.at < 24 * 3600e3);
+  add('assistant', 'Assistant', 'ok', `${assistantMod.SKILLS.length} skills · ${new Set(assistantMod.SKILLS.flatMap(k => k.pages)).size} pages covered`);
   add('errors', 'Server errors', recent.length ? 'warn' : 'ok', recent.length ? `${recent.length} in the last 24 h` : 'none in the last 24 h');
   const bad = checks.filter(c => c.state === 'bad').length, warn = checks.filter(c => c.state === 'warn').length;
   const iso = d => new Date(d).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
