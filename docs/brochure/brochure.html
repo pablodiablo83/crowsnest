@@ -1,0 +1,257 @@
+<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>Crow’s Nest – Features and app overview</title>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#00154C;--navy2:#062F4A;--teal:#28A7C4;--teal2:#0C829B;--amber:#F5B041;--ink:#0B1B33;--mute:#5A6B82;--line:#D8E0EA;--paper:#F6F8FB}
+@page{size:A4;margin:0}
+*{box-sizing:border-box}
+body{margin:0;font-family:Lato,Arial,sans-serif;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pg{width:210mm;height:297mm;position:relative;overflow:hidden;page-break-after:always;padding:16mm 16mm 18mm;background:#fff}
+.pg:last-child{page-break-after:auto}
+.dark{background:var(--navy);color:#fff}
+.hd{display:flex;align-items:center;gap:8px;font-weight:900;font-size:11pt;color:var(--navy2);border-bottom:2px solid var(--navy2);padding-bottom:5px;margin-bottom:9mm}
+.hd img{width:22px;height:22px}.hd span{margin-left:auto;font-weight:700;font-size:8.5pt;color:var(--mute);letter-spacing:.06em;text-transform:uppercase}
+.ft{position:absolute;left:16mm;right:16mm;bottom:9mm;font-size:7.5pt;color:var(--mute);display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:4px}
+.dark .ft{color:rgba(255,255,255,.55);border-color:rgba(255,255,255,.18)}
+.eyebrow{font-weight:900;font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:var(--teal2)}
+.dark .eyebrow{color:var(--amber)}
+h1{font-weight:900;font-size:30pt;line-height:1.05;margin:2mm 0 4mm;letter-spacing:-.01em}
+h2{font-weight:900;font-size:21pt;line-height:1.1;margin:1.5mm 0 3mm;color:var(--navy)}
+h3{font-weight:900;font-size:11pt;margin:0 0 1.5mm;color:var(--navy)}
+p{font-size:10pt;line-height:1.5;margin:0 0 3mm}
+.lead{font-size:11.5pt;line-height:1.5;color:#26384F}
+ul.f{list-style:none;padding:0;margin:0}
+ul.f li{position:relative;padding-left:15px;font-size:9.6pt;line-height:1.45;margin:0 0 2.2mm}
+ul.f li:before{content:"";position:absolute;left:0;top:.48em;width:7px;height:7px;border-radius:2px;background:var(--teal)}
+ul.f li b{color:var(--navy)}
+.row{display:flex;gap:9mm;align-items:flex-start}
+.col{flex:1;min-width:0}
+.phones{display:flex;gap:6mm;justify-content:center;flex:none}
+.phone{width:62mm;flex:none;border-radius:9.5mm;background:#0A0F1A;padding:2.4mm;box-shadow:0 6mm 12mm rgba(0,21,76,.28),0 0 0 .35mm #3A4458 inset;position:relative}
+.phone .scr{border-radius:7.4mm;overflow:hidden;background:#00154C}.phone .sb{height:8.5mm;display:flex;align-items:center;padding:0 6mm;font:700 7.5pt Lato,Arial;color:#fff}.phone .sb i{margin-left:auto;font-style:normal;letter-spacing:.5px;font-size:6.5pt}.phone.light .scr{background:#fff}.phone.light .sb{color:#0B1B33}.phone img{display:block;width:100%}
+.phone:after{content:"";position:absolute;top:4.3mm;left:50%;width:17mm;height:4.6mm;margin-left:-8.5mm;border-radius:3mm;background:#05070C}
+.phone.sm{width:55mm}.phone.xs{width:50mm}.phones .phone.xs .sb{height:7mm}
+.cap{font-size:8pt;color:var(--mute);text-align:center;margin-top:3mm;line-height:1.35}
+.dark .cap{color:rgba(255,255,255,.6)}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:4mm;padding:4.5mm 5mm;margin-bottom:4mm}
+.chip{display:inline-block;font-size:7.5pt;font-weight:900;letter-spacing:.06em;padding:1mm 2.4mm;border-radius:10mm;text-transform:uppercase}
+.c-h{background:#DDF3E5;color:#14663A}.c-m{background:#FFF1D6;color:#8A5A00}.c-l{background:#FBE1DE;color:#9A2B1E}
+table.t{width:100%;border-collapse:collapse;font-size:8.8pt}
+table.t th{text-align:left;font-size:7.5pt;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);border-bottom:1.5px solid var(--navy2);padding:1.6mm 2mm}
+table.t td{border-bottom:1px solid var(--line);padding:2mm;vertical-align:top;line-height:1.38}
+.rule{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;margin:4mm 0 5mm}
+.rule div{background:var(--navy);color:#fff;border-radius:3.5mm;padding:3.5mm}
+.rule b{display:block;font-size:17pt;font-weight:900;color:var(--amber);line-height:1}
+.rule span{font-size:8pt;line-height:1.3;display:block;margin-top:1.5mm;color:rgba(255,255,255,.8)}
+.note{font-size:8pt;color:var(--mute);line-height:1.4}
+/* cover */
+.cover{padding:0}
+.cover .top{padding:22mm 18mm 0;position:relative;z-index:2}
+.brand{display:flex;align-items:center;gap:5mm}
+.brand img{width:22mm;height:22mm}
+.brand .nm{font-size:34pt;font-weight:900;letter-spacing:-.01em}
+.cover h1{font-size:25pt;margin-top:12mm;max-width:150mm;line-height:1.15}
+.cover .sub{font-size:12pt;line-height:1.5;color:rgba(255,255,255,.78);max-width:150mm}
+.cover .stage{position:absolute;left:0;right:0;bottom:24mm;display:flex;justify-content:center;gap:8mm;z-index:2}
+.cover .stage .phone{width:56mm;box-shadow:0 8mm 18mm rgba(0,0,0,.45),0 0 0 .35mm #3A4458 inset}
+.cover .stage .phone.mid{transform:translateY(-12mm)}
+.wave{position:absolute;left:0;right:0;bottom:0;height:120mm;background:linear-gradient(180deg,rgba(40,167,196,0) 0,rgba(12,130,155,.35) 100%);z-index:1}
+.tags{display:flex;gap:2.5mm;flex-wrap:wrap;margin-top:7mm}
+.tags span{font-size:8.5pt;font-weight:700;border:1px solid rgba(255,255,255,.3);border-radius:10mm;padding:1.3mm 3.2mm;color:#fff}
+.paper{width:100mm;background:#fff;border-radius:1.5mm;box-shadow:0 5mm 12mm rgba(0,21,76,.25);overflow:hidden;height:178mm;border:1px solid var(--line)}
+.paper img{width:100%;display:block}
+ul.f.two{columns:2;column-gap:8mm}ul.f.two li{break-inside:avoid}.prow{display:flex;justify-content:center;gap:9mm;margin-top:7mm}.prow .phone{width:57mm}
+.k{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
+</style></head><body>
+
+<!-- 1 COVER -->
+<section class="pg dark cover">
+  <div class="top">
+    <div class="brand"><img src="icon.svg"><div class="nm">Crow’s Nest</div></div>
+    <h1>The master’s dashboard: hours of rest, voyage track, tides and weather in one place, on board or ashore.</h1>
+    <div class="sub">Self-hosted, built for small commercial and training vessels. Works in the browser and as an iPhone and Android app that keeps working with no signal.</div>
+    <div class="tags"><span>MCA / STCW hours of rest</span><span>Offline at sea</span><span>Tides from UK gauges</span><span>Multi-model wind</span><span>Passage pack PDF</span></div>
+  </div>
+  <div class="stage">
+    <div class="phone"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/hours-of-rest.png"></div></div>
+    <div class="phone mid"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/index.png"></div></div>
+    <div class="phone"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/tides.png"></div></div>
+  </div>
+  <div class="wave"></div>
+  <div class="ft"><span>Features and app overview · November 2026</span><span>© 2026 Crow’s Nest. All rights reserved.</span></div>
+</section>
+
+<!-- 2 WHAT IT IS -->
+<section class="pg">
+  <div class="hd"><img src="icon.svg">Crow’s Nest<span>What it is</span></div>
+  <div class="eyebrow">App description</div>
+  <h2>One screen for the person in charge of the vessel</h2>
+  <p class="lead">Crow’s Nest keeps the records a master is responsible for, hours of rest and the voyage track, alongside the information needed to plan the next passage: tides, wind, the inshore waters forecast and an Atlantic weather chart. Crew tap WORK or REST; the server works out compliance against the rest rules and shows what is within the limit, what is not, and what is unknown because nothing was logged.</p>
+  <div class="row" style="margin-top:6mm">
+    <div class="col">
+      <h3>Who it is for</h3>
+      <ul class="f">
+        <li><b>Masters and skippers</b> of small commercial, charter and sail-training vessels who must keep hours-of-rest records.</li>
+        <li><b>Crew</b>, each on their own phone, seeing and changing only their own hours.</li>
+        <li><b>Shore management</b> needing a clean, exportable record and a change history.</li>
+      </ul>
+      <h3 style="margin-top:5mm">How it is built</h3>
+      <ul class="f">
+        <li><b>The server is the authority.</b> It checks every record and decides compliance; phones record what happened and send it when they can.</li>
+        <li><b>Offline first on the phone.</b> Taps, new entries, End voyage and positions are saved on the phone and sent in order, each applied once.</li>
+        <li><b>Self-hosted.</b> Runs on the owner’s own server behind a secure tunnel; data stays with the operator.</li>
+        <li><b>Nothing is erased.</b> Edits and deletions are audited and can be undone; the change history names the phone or account.</li>
+      </ul>
+      <h3 style="margin-top:5mm">Getting a phone connected</h3>
+      <p>On the web, the master opens <b>Customise › Phones › Pair a phone</b>, chooses Master or one crew member, and types the one-time code into the app. A lost phone is removed in one tap; its records stay.</p>
+    </div>
+    <div class="phones" style="flex-direction:column;align-items:center"><div class="phone sm"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/connect.png"></div></div><div class="cap">Pairing a phone: one code,<br>valid once for 10 minutes</div></div>
+  </div>
+  <div class="ft"><span>Crow’s Nest · Features and app overview</span><span>2</span></div>
+</section>
+
+<!-- 3 HOURS OF REST -->
+<section class="pg">
+  <div class="hd"><img src="icon.svg">Crow’s Nest<span>Hours of rest</span></div>
+  <div class="eyebrow">Core feature</div>
+  <h2>Hours of rest, checked continuously</h2>
+  <p class="lead">Each crew member taps WORK or REST as they change over. Rolling 24-hour and 7-day windows are checked at every moment of the voyage, not just now, and the record is ready to print or export.</p>
+  <div class="rule">
+    <div><b>10 h</b><span>rest in any 24 hours</span></div>
+    <div><b>77 h</b><span>rest in any 7 days</span></div>
+    <div><b>2</b><span>periods at most, one of at least 6 h</span></div>
+    <div><b>14 h</b><span>at most between rest periods</span></div>
+  </div>
+  <ul class="f two">
+        <li><b>Three honest verdicts:</b> within the limit, below the limit, or not known. Unlogged time is never silently counted as rest.</li>
+        <li><b>“You can keep working for…”</b> shows how long until the next limit is reached.</li>
+        <li><b>Last 7 days</b> as a bar per day: rest, work, not logged; tap a block to change it.</li>
+        <li><b>Voyages</b> per crew member with a joining declaration (rested at joining, records acknowledged).</li>
+        <li><b>Manual entries</b> for time logged late, with overlap checks, undo and restore.</li>
+        <li><b>Crew phones</b> see and change only their own hours; the master sees everyone.</li>
+        <li><b>Record and export:</b> printable record for endorsement, CSV and full JSON data, change history.</li>
+      </ul><p class="note" style="margin-top:3mm">Rules follow MCA/STCW hours of rest; thresholds are configurable for the instrument that applies to the vessel. Crow’s Nest is a record-keeping aid: the master remains responsible for compliance.</p><div class="prow" style="margin-top:5mm"><div><div class="phone" style="width:51mm"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/hours-of-rest.png"></div></div><div class="cap">Status and rest checks</div></div><div><div class="phone" style="width:51mm"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/hor2.png"></div></div><div class="cap">Last 7 days at a glance</div></div></div>
+  <div class="ft"><span>Crow’s Nest · Features and app overview</span><span>3</span></div>
+</section>
+
+<!-- 4 DASHBOARD + TRACK -->
+<section class="pg">
+  <div class="hd"><img src="icon.svg">Crow’s Nest<span>Dashboard and voyage map</span></div>
+  <div class="row">
+    <div class="col">
+      <div class="eyebrow">Dashboard</div>
+      <h2>Everything on one page</h2>
+      <ul class="f">
+        <li><b>Rest ring and status</b> for the selected crew member, with one-tap WORK/REST and End voyage.</li>
+        <li><b>Tiles</b> for weather, wind, tides, the Atlantic chart, position, voyage distance and today’s log; each opens its full page.</li>
+        <li><b>Position</b> from the phone or typed in, shown in degrees and minutes.</li>
+      </ul>
+    </div>
+    <div class="phones"><div class="phone xs"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/index.png"></div></div><div class="phone xs"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/dash2.png"></div></div></div>
+  </div>
+  <div class="row" style="margin-top:9mm">
+    <div class="phones"><div class="phone xs"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/track.png"></div></div><div class="phone xs"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/track2.png"></div></div></div>
+    <div class="col">
+      <div class="eyebrow">Voyage map</div>
+      <h2>The track, recorded as you work</h2>
+      <ul class="f">
+        <li><b>Positions</b> on every WORK/REST tap, at End voyage, on “Log position now”, and in the background while a voyage is open (iPhone: while the app is running).</li>
+        <li><b>Trip summary:</b> distance, time on voyage, average and fastest leg, start and latest fix.</li>
+        <li><b>Amend the start</b> by dragging the marker or typing coordinates; audited, with undo.</li>
+        <li><b>Export</b> GPX and CSV, or print the trip map.</li>
+        <li>Own map engine with OpenStreetMap and OpenSeaMap tiles; the track still draws on the grid with no signal.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="ft"><span>Crow’s Nest · Features and app overview</span><span>4</span></div>
+</section>
+
+<!-- 5 TIDES -->
+<section class="pg">
+  <div class="hd"><img src="icon.svg">Crow’s Nest<span>Tides</span></div>
+  <div class="eyebrow">Passage planning</div>
+  <h2>Tides worked out from real gauge records</h2>
+  <p class="lead">Crow’s Nest analyses a year of readings from UK National Tide Gauge Network stations and predicts heights and high and low waters itself, so tides keep working offline once loaded.</p>
+  <ul class="f two">
+        <li><b>Now:</b> height above chart datum, rising or falling, next high and low water, springs/neaps.</li>
+        <li><b>Tidal curve</b> by day, with a slider for the height at any time.</li>
+        <li><b>Search a place or port;</b> the nearest gauge or your own secondary port is used, and the page says which and how far away.</li>
+        <li><b>Secondary ports</b> from your almanac differences (Admiralty method).</li>
+        <li><b>Optional UKHO ADMIRALTY</b> predictions with your own subscription key.</li>
+        <li>Checked against NOAA official predictions: under 1 cm rms and under 2 minutes for HW/LW at three test ports.</li>
+      </ul><div class="prow"><div><div class="phone"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/tides.png"></div></div><div class="cap">Now, next HW/LW and the curve</div></div><div><div class="phone"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/tides2.png"></div></div><div class="cap">High and low waters, 7 days</div></div></div><p class="note" style="margin-top:6mm">Astronomical tide only: no storm surge. Not a substitute for official tidal predictions for navigation.</p>
+  <div class="ft"><span>Crow’s Nest · Features and app overview</span><span>5</span></div>
+</section>
+
+<!-- 6 WEATHER -->
+<section class="pg">
+  <div class="hd"><img src="icon.svg">Crow’s Nest<span>Wind and weather</span></div>
+  <div class="eyebrow">Weather</div>
+  <h2>Wind from the model you trust, and the ocean picture</h2>
+  <div class="k" style="gap:8mm"><div>
+      <h3>Wind</h3>
+      <ul class="f">
+        <li><b>Seven forecast models:</b> UK Met Office (default), ECMWF, DWD ICON, DMI HARMONIE, Météo-France, NOAA GFS, best match. Compare all at a chosen time.</li>
+        <li>Dial, Beaufort force, gusts and an hourly table; arrows point the way the wind blows.</li>
+      </ul>
+      </div><div><h3>Inshore waters forecast</h3>
+      <ul class="f">
+        <li>The Met Office inshore forecast for the nearest of 19 areas plus Shetland, with warnings; the last good copy is kept and marked if the source is unreachable.</li>
+      </ul>
+      <h3 style="margin-top:4mm">Atlantic weather chart</h3>
+      <ul class="f">
+        <li>Ocean-crossing zones with wind, gusts, sea, swell, rain and isobars over 10 days, a fleet overview table and the boat’s position.</li>
+      </ul>
+      </div></div><div class="prow"><div><div class="phone"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/wind.png"></div></div><div class="cap">Wind at your position</div></div><div><div class="phone light"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/atlantic.png"></div></div><div class="cap">Atlantic chart</div></div></div><p class="note" style="margin-top:6mm">Model output, not an official marine forecast. The Atlantic chart currently uses a periodically refreshed forecast snapshot.</p>
+  <div class="ft"><span>Crow’s Nest · Features and app overview</span><span>6</span></div>
+</section>
+
+<!-- 7 PASSAGE PACK -->
+<section class="pg">
+  <div class="hd"><img src="icon.svg">Crow’s Nest<span>Passage pack</span></div>
+  <div class="eyebrow">Before sailing</div>
+  <h2>A printed passage pack in two taps</h2>
+  <p class="lead">Choose the dates, up to four ports and what to include; Crow’s Nest lays out tides, wind and the inshore forecast on A4 to print or save as a PDF for the chart table.</p>
+  <ul class="f two">
+        <li><b>Tides:</b> curve, HW/LW and hourly heights per day for each port.</li>
+        <li><b>Wind:</b> chart plus 3-hourly or hourly tables, at your position or a chosen port.</li>
+        <li><b>Inshore forecast</b> for the nearest or a chosen area.</li>
+        <li>Settings live in the link, so a saved pack opens the same way again.</li>
+        <li>Every export is branded: letterhead, copyright line and third-party credits.</li>
+      </ul><div class="row" style="align-items:flex-start;justify-content:center;margin-top:6mm">
+    <div><div class="phone sm"><div class="scr"><div class="sb">20:00<i>▮▮▮ ◔</i></div><img src="shots/passage.png"></div></div><div class="cap">Choose what to include</div></div>
+    <div><div class="paper"><img src="shots/pack.png"></div><div class="cap">The pack as printed (A4)</div></div>
+    
+  </div>
+  <div class="ft"><span>Crow’s Nest · Features and app overview</span><span>7</span></div>
+</section>
+
+<!-- 8 APP, SECURITY, STATUS -->
+<section class="pg">
+  <div class="hd"><img src="icon.svg">Crow’s Nest<span>Phone app, security and status</span></div>
+  <div class="k">
+    <div class="card"><h3>The phone app</h3><ul class="f">
+      <li>The same pages, bundled into iPhone and Android apps (Capacitor 8): they open with no signal and show the last known state.</li>
+      <li>Records made offline are saved on the phone first and sent in order when back in range; any that no longer fit are listed, never lost silently.</li>
+      <li>Older app builds keep working: the phone API only grows.</li></ul></div>
+    <div class="card"><h3>Security and data</h3><ul class="f">
+      <li>Sign-in on every page and route; phones use their own device tokens, removable at once.</li>
+      <li>Crew accounts and phones are confined to their own records.</li>
+      <li>Strict browser security headers, formula-safe CSV, audited changes, automatic backups on each update.</li></ul></div>
+  </div>
+  <h3 style="margin-top:2mm">Where things stand (24 Nov 2026)</h3>
+  <table class="t">
+    <tr><th style="width:34%">Part</th><th>State</th><th style="width:16%">Confidence</th></tr>
+    <tr><td>Web app (dashboard, hours of rest, map, tides, wind, inshore, Atlantic, passage pack)</td><td>Live on the owner’s server; automated tests on every change</td><td><span class="chip c-h">High</span></td></tr>
+    <tr><td>iPhone app</td><td>Compiles and runs in the iOS Simulator against a test server; TestFlight upload pipeline ready, first upload pending Apple keys</td><td><span class="chip c-m">Moderate</span></td></tr>
+    <tr><td>Android app</td><td>Builds and passes an emulator test; Google Play account and first release still to do</td><td><span class="chip c-m">Moderate</span></td></tr>
+    <tr><td>Real-device use at sea (offline, background track, battery)</td><td>Not yet tested on a real phone</td><td><span class="chip c-l">Low</span></td></tr>
+  </table>
+  <h3 style="margin-top:6mm">Next</h3>
+  <ul class="f">
+    <li>First TestFlight build and real-device trial on board.</li>
+    <li>Boat instrument feed (NMEA / Signal K) for continuous positions; push warnings before a rest limit is reached; Android release.</li>
+  </ul>
+  <p class="note" style="margin-top:6mm">Screens in this document are the real app pages with a fictional vessel (“Sea Lark”), crew and passage. Weather, tide and forecast data in the screens are test data. Map tiles load when online; the screens show the track on its grid.</p>
+  <div class="ft"><span>© 2026 Crow’s Nest. All rights reserved. Contains OpenStreetMap, Open-Meteo (CC BY 4.0) and Met Office data credits in the app.</span><span>8</span></div>
+</section>
+</body></html>
