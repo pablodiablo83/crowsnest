@@ -91,7 +91,7 @@ A build run from Xcode works for development. TestFlight is the proper install r
         - `ASC_KEY_ID`.
         - `ASC_ISSUER_ID`.
         - `ASC_KEY_P8`: the whole file text.
-     4. Run it: Actions > **iOS TestFlight** > Run workflow. The build number is the run number.
+     4. Run it: Actions > **iOS TestFlight** > Run workflow (runner **xcode-27**, the default). The build number is the run number.
 3. Builds appear in TestFlight after processing (10 to 30 minutes).
    - **Internal testers**: up to 100, each must be a user on your App Store Connect team. Install the TestFlight app and accept the invite.
    - **Crew without accounts**: use external testing (a public link or email invites). The first build needs a light Beta App Review, about a day.
@@ -109,7 +109,14 @@ Not needed for TestFlight: App Store screenshots, privacy policy page, App Revie
   - Server API changes reach both at once: keep `/api/v1` backwards compatible, because old app builds keep running.
 - **Phone lost**: open Customise > Phones > Remove. It stops working at once and its records stay.
 - **Tests**: run `tests/run-all.sh` before pushing. GitHub runs it on every push ("Tests").
-- **CI cost**: "iOS build check" runs on a hosted Mac, but only when `app/` changes. On a private repo, Mac minutes count 10x against the free 2,000 a month, so a build of about 10 minutes uses about 100.
+- **CI cost**: "iOS build check" runs on a hosted Mac (`xcode-27`), but only when `app/` changes. The repo is public (24 Nov 2026), so standard hosted runners cost nothing; if it is made private, Mac minutes count 10x against the free 2,000 a month and the shared $20 budget, so a build of about 10 minutes uses about 100.
+
+## Xcode 27 and iPhone Duo (24 Nov 2026)
+
+- Both iOS workflows build on GitHub's `xcode-27` image (Xcode 27.0-27.2, newest stable picked). The SDK the app is built with decides how it looks on iPhone Duo's inner display: iOS 26 SDK boxed in, 27.0 mostly filled, **27.1 or later the optimised full-screen layout**. The TestFlight run stops if the SDK on `xcode-27` is older than 27.1; `macos-15` (Xcode 26) stays as a fallback and warns.
+- From April 2027 App Store Connect needs the iOS 27 SDK for every upload, so this is needed anyway.
+- The iOS build check boots the **iPhone Duo** simulator when the image has one (else the newest iPhone) and also captures the cover display (`sim-cover.png`).
+- Not yet checked: how the pages look on the unfolded inner display (about 640 pt wide upright; most pages are a centred column up to 520 px) and whether the portrait-only iPhone setting matters there. Check on the Duo simulator or a real Duo before claiming Duo support.
 
 ## Known limits
 

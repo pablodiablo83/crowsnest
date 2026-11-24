@@ -63,6 +63,8 @@ Pabs works from an iPhone terminal (SSH to the server) - long pastes get garbled
 - Express default error page leaked stack traces: a final JSON error handler in server.js now answers 500 without detail (logs the stack).
 
 
+- Xcode 27 / iPhone Duo (24 Nov 2026, Pabs): `ios-testflight.yml` defaults to runner `xcode-27` and fails there if the iOS SDK is older than 27.1 (Duo optimised layout; App Store needs the iOS 27 SDK from April 2027); `macos-15` is the fallback. `ios-build.yml` runs on `xcode-27` and boots the iPhone Duo simulator. The Duo inner-display layout of the pages is not yet checked. First TestFlight run (needs the four secrets) = first signed Xcode 27 build: read the first `error:` line if it fails.
+
 ## How Pabs builds apps (learned from Streakling, 22 Oct 2026; apply here)
 Process that worked:
 - One source-of-truth file per project (here: this file) holding decisions, current state, rules and lessons; read it first in a new session, update it after anything important. Code is the authority for code, the file for decisions.

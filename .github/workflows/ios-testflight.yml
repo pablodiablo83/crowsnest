@@ -6,22 +6,22 @@
 #   ASC_ISSUER_ID      Issuer ID shown on the same page
 #   ASC_KEY_P8         the full text of the downloaded AuthKey_XXXX.p8 file
 # The app record (bundle ID uk.co.crowsnest.app) must already exist in App Store Connect.
-# Lessons from the same account's other app (Streakling): pinned runner, a clean PEM rebuilt from the secret and checked
+# Default runner xcode-27 (24 Nov 2026, Pabs: built on the Xcode iPhone Duo needs). Lessons from Streakling: pinned runner, a clean PEM rebuilt from the secret and checked
 # with Apple before building, and the development certificates each CI Mac makes revoked before and after.
 name: iOS TestFlight
 on:
   workflow_dispatch:
     inputs:
       runner:
-        description: Mac image (macos-latest jobs sat in the queue and were cancelled in the other project)
+        description: Mac image (xcode-27 = Xcode 27.1+ / iOS 27.1+ SDK, needed for the iPhone Duo full-screen layout and for uploads from April 2027; macos-15 = Xcode 26, fallback only)
         type: choice
-        options: [macos-15, macos-latest]
-        default: macos-15
+        options: [xcode-27, macos-15, macos-latest]
+        default: xcode-27
 permissions:
   contents: read
 jobs:
   upload:
-    runs-on: ${{ inputs.runner || 'macos-15' }}
+    runs-on: ${{ inputs.runner || 'xcode-27' }}
     timeout-minutes: 60
     defaults:
       run:
@@ -45,10 +45,20 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: app/package-lock.json
-      - name: Xcode (newest stable on the runner)
+      - name: Xcode (newest stable on the runner) and the iOS SDK check
+        # iPhone Duo (24 Nov 2026): the SDK the app is BUILT with decides the layout on the inner display (iOS 26 SDK: boxed in;
+        # 27.0: mostly filled; 27.1 or later: optimised, full display). The xcode-27 image has Xcode 27.0, 27.1 and 27.2 (seen 21 Nov
+        # in the other app's probe); the newest stable is picked. On xcode-27 the build stops if the SDK is older than 27.1.
+        env:
+          RUNNER_CHOICE: ${{ inputs.runner || 'xcode-27' }}
         run: |
-          x=$(ls -d /Applications/Xcode_*.app | grep -ivE 'beta|release_candidate|_rc' | sort -V | tail -1); echo "Using $x"
+          x=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -ivE 'beta|release_candidate|_rc' | sort -V | tail -1); [ -n "$x" ] || x=$(ls -d /Applications/Xcode*.app | sort -V | tail -1); echo "Using $x"
           sudo xcode-select -s "$x/Contents/Developer"; xcodebuild -version
+          sdk=$(xcodebuild -showsdks 2>/dev/null | grep -o 'iphoneos[0-9.]*' | sort -V | tail -1); echo "iOS SDK: $sdk"
+          v=${sdk#iphoneos}; maj=${v%%.*}; min=${v#*.}; [ "$min" = "$v" ] && min=0; min=${min%%.*}
+          if [ "$maj" -gt 27 ] || { [ "$maj" -eq 27 ] && [ "$min" -ge 1 ]; }; then echo "OK: $sdk gives the optimised iPhone Duo layout."
+          elif [ "$RUNNER_CHOICE" = "xcode-27" ]; then echo "::error::$sdk is older than iOS 27.1: iPhone Duo would not get the full-screen layout. Check the xcode-27 image's Xcode versions."; exit 1
+          else echo "::warning::Built with $sdk on $RUNNER_CHOICE: on iPhone Duo the app runs boxed in, and from April 2027 App Store Connect refuses SDKs before iOS 27. Use runner xcode-27."; fi
       - run: npm ci
       - run: npm run sync:ios
       - name: API key
