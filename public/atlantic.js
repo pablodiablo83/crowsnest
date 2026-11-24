@@ -404,7 +404,7 @@ function renderSide(){
   el.querySelectorAll('tr[data-i]').forEach(tr => tr.onclick = () => setTime(+tr.dataset.i));
   const b=$('back'); if (b) b.onclick = () => selectZone(null);
   $('posSet').onclick = setPos; $('posIn').onkeydown = e => { if (e.key==='Enter') setPos(); };
-  const pc=$('posClr'); if (pc) pc.onclick = () => { S.boat=null; store.set('boat',null); drawBoat(); renderSide(); };
+  const pc=$('posClr'); if (pc) pc.onclick = () => { S.boat=null; store.set('boat',null); drawBoat(); if (window.CNAhead) CNAhead.boat(null); renderSide(); };
   const gc=$('gpxClr'); if (gc) gc.onclick = () => { S.gpx=null; store.set('gpx',null); drawGpx(); renderSide(); };
   $('gpxIn').onchange = e => { const f=e.target.files[0]; if (!f) return; const rd=new FileReader();
     rd.onload = () => { try { S.gpx=parseGpx(rd.result); store.set('gpx',S.gpx); drawGpx(); renderSide();
@@ -418,7 +418,7 @@ function renderSide(){
 function setPos(){
   const p=parsePos($('posIn').value);
   if (!p || Math.abs(p[0])>90 || Math.abs(p[1])>180){ $('posNote').textContent='Could not read that. Try 17 32.5N 035 12.0W or 17.54, -35.2.'; return; }
-  S.boat=p; store.set('boat',p); drawBoat(); const z=zoneAt(p[0],p[1]); if (z) S.zone=z; updateLabels(); renderSide();
+  S.boat=p; store.set('boat',p); drawBoat(); if (window.CNAhead) CNAhead.boat(S.boat); const z=zoneAt(p[0],p[1]); if (z) S.zone=z; updateLabels(); renderSide();
   map.panTo(p);
 }
 function selectZone(z, pan){ S.zone=z; updateLabels(); renderSide(); if (z && pan) map.panTo([z.la,z.lo]); }
@@ -482,9 +482,10 @@ Promise.all([fetch('/atlantic/wx.json',{cache:'no-cache'}).then(r=>{ if(!r.ok) t
   $('bIso').setAttribute('aria-pressed',S.iso); $('bRoute').setAttribute('aria-pressed',S.route);
   buildZones(); buildRoute(); drawBoat(); drawGpx(); buildDays(); legend(); age(); setInterval(age, 600e3);
   let t0 = wx.times.findIndex(ts => new Date(ts) >= Date.now() - 3*3600e3); if (t0<0) t0=wx.times.length-1;
-  if (!S.boat) fetch('/api/positions/latest').then(r=>r.ok?r.json():null).then(p=>{ if (p && p.lat!=null && Math.abs(p.lat)>0){ S.boat=[p.lat,p.lon]; S.boatAuto=true; drawBoat(); const z=zoneAt(p.lat,p.lon); if (z){ S.zone=z; updateLabels(); renderSide(); } } }).catch(()=>{});
+  if (window.CNAhead) CNAhead.ready(wx, S.boat, FINISH);   // option A list view (atlantic-ahead.js)
+  if (!S.boat) fetch('/api/positions/latest').then(r=>r.ok?r.json():null).then(p=>{ if (p && p.lat!=null && Math.abs(p.lat)>0){ S.boat=[p.lat,p.lon]; S.boatAuto=true; drawBoat(); if (window.CNAhead) CNAhead.boat(S.boat); const z=zoneAt(p.lat,p.lon); if (z){ S.zone=z; updateLabels(); renderSide(); } } }).catch(()=>{});
   if (S.boat){ const z=zoneAt(S.boat[0],S.boat[1]); if (z) S.zone=z; }
   setTime(t0);
 })
-.catch(() => { $('msg').textContent = 'The forecast data did not load. Reload the page when you have signal.'; });
+.catch(() => { $('msg').textContent = 'The forecast data did not load. Reload the page when you have signal.'; if (window.CNAhead) CNAhead.failed(); });
 })();
