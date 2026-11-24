@@ -145,8 +145,10 @@
     ready(wx, boat, fin) { A.wx = wx; A.boat = boat; A.fin = [fin.lat, fin.lon]; A.finName = fin.name.split(',')[0]; if (!$('ahead').hidden) render(); },
     boat(b) { A.boat = b; if (!$('ahead').hidden) render(); },
     show,
-    failed() { const el = $('ahead'); if (el && !el.hidden) { el.innerHTML = `<div class="ah-top"><a class="ah-back" href="/">‹ Dashboard</a></div><div class="ah-card ah-empty"><b>The forecast did not load</b><p>Reload the page when you have signal.</p></div>`; } },
+    failed(e) { const el = $('ahead'); if (el && !el.hidden && !A.wx) { el.innerHTML = `<div class="ah-top"><a class="ah-back" href="/">‹ Dashboard</a></div><div class="ah-card ah-empty"><b>The forecast did not load</b><p>Reload the page when you have signal.${e && e.message ? ' (' + String(e.message).replace(/[<>&]/g, '') + ')' : ''}</p><button class="ah-chart" id="ahReload">Reload</button></div>`; const b = $('ahReload'); if (b) b.onclick = () => location.reload(); } },
     _plan: () => plan()
   };
+  window.addEventListener('error', e => { if (!A.wx) window.CNAhead.failed(new Error('page error: ' + e.message)); });
+  setTimeout(() => { if (!A.wx) window.CNAhead.failed(new Error('the chart did not start; reload the page')); }, 25000);   // never "Loading" for ever
   document.addEventListener('DOMContentLoaded', () => { const b = $('bAhead'); if (b) b.onclick = () => show(true); if ($('ahead') && !$('ahead').hidden) document.body.classList.add('ahead-on'); });
 })();

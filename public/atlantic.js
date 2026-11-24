@@ -490,5 +490,5 @@ Promise.all([getWx(), fetch('/atlantic/land.json').then(r=>{ if(!r.ok) throw 0; 
   if (S.boat){ const z=zoneAt(S.boat[0],S.boat[1]); if (z) S.zone=z; }
   setTime(t0);
 })
-.catch(() => { $('msg').textContent = 'The forecast data did not load. Reload the page when you have signal.'; if (window.CNAhead) CNAhead.failed(); });
+.catch(e => { console.error('atlantic: load failed', e); const m=$('msg'); if (m) m.textContent = 'The forecast data did not load. Reload the page when you have signal.'; if (window.CNAhead) CNAhead.failed(e); });
 })();
