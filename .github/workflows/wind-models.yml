@@ -1,4 +1,5 @@
-# Live check: every wind model on /api/wind against the real Open-Meteo, and the Met Office inshore waters parser
+# Live check: every wind model on /api/wind against the real Open-Meteo, the Atlantic forecast engine (atlantic-wx.js),
+# and the Met Office inshore waters parser
 # against the real page (the dev sandbox can reach neither).
 # Runs on demand and every Monday morning; the log lists which models give wind at a Clyde position.
 name: Wind and inshore forecasts (live)
@@ -8,7 +9,7 @@ on:
     - cron: '17 6 * * 1'
   push:
     branches: [main]
-    paths: ['tests/wind-live.js', 'tests/inshore-live.js', 'inshore-areas.js', '.github/workflows/wind-models.yml']
+    paths: ['tests/wind-live.js', 'tests/inshore-live.js', 'tests/atlantic-live.js', 'atlantic-wx.js', 'inshore-areas.js', '.github/workflows/wind-models.yml']
 jobs:
   live:
     runs-on: ubuntu-latest
@@ -30,3 +31,4 @@ jobs:
           echo 'test-password-1234' | DATA_DIR="$RUNNER_TEMP/data" node tools/user.js add tester master --password-stdin
           node tests/wind-live.js
           node tests/inshore-live.js
+          node tests/atlantic-live.js

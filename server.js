@@ -1357,6 +1357,9 @@ app.get('/api/inshore', async (req, res) => {
 // ---- tides (tides.js: standard ports from open gauge data + the tide engine; secondary ports by the Admiralty method)
 require('./tides.js')(app, { db, auditRaw, getSetting, setSetting });
 
+// ---- Atlantic weather (atlantic-wx.js): the /atlantic.html forecast, refreshed from Open-Meteo every 6 h
+require('./atlantic-wx.js')(app, { DATA_DIR, curDevice });
+
 require('./extra')(app, db);
 
 app.get('/healthz', (req, res) => res.send('ok'));

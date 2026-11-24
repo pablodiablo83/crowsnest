@@ -470,7 +470,10 @@ map.on('zoomend resize', () => S.wx && updateLabels());
 map.on('click', e => { const {lat,lng}=e.latlng; S.pt=[lat,lng]; const z=zoneAt(lat,lng); if (z) S.zone=z; updateLabels(); showReadout(); renderSide(); });
 
 // ---------- Load ----------
-Promise.all([fetch('/atlantic/wx.json',{cache:'no-cache'}).then(r=>{ if(!r.ok) throw 0; return r.json(); }), fetch('/atlantic/land.json').then(r=>{ if(!r.ok) throw 0; return r.json(); })])
+// forecast: the server's copy (refreshed every 6 h by atlantic-wx.js; the app keeps the last one offline), else the bundled snapshot
+const getWx = () => fetch('/api/atlantic/wx').then(r=>{ if(!r.ok) throw 0; return r.json(); })
+  .catch(() => fetch('/atlantic/wx.json',{cache:'no-cache'}).then(r=>{ if(!r.ok) throw 0; return r.json(); }));
+Promise.all([getWx(), fetch('/atlantic/land.json').then(r=>{ if(!r.ok) throw 0; return r.json(); })])
 .then(([wx, land]) => {
   S.wx=wx; S.land=land;
   LAT0=wx.lats[0]; LON0=wx.lons[0]; DLAT=wx.lats[1]-wx.lats[0]; DLON=wx.lons[1]-wx.lons[0]; NLAT=wx.lats.length; NLON=wx.lons.length;

@@ -4,6 +4,7 @@
 set -u
 cd "$(dirname "$0")/.." || exit 1
 TMP=$(mktemp -d); trap 'fuser -k 8091/tcp >/dev/null 2>&1; rm -rf "$TMP"' EXIT
+export NO_WX_REFRESH=1   # no Atlantic forecast fetches from the test servers (api-atlantic.js refreshes by hand)
 export NODE_PATH="$(npm root -g):$PWD/node_modules${NODE_PATH:+:$NODE_PATH}"
 fail=0
 fresh() {   # fresh [ENV=VAL...]
@@ -26,6 +27,7 @@ fresh && run api-auth node tests/api-auth.js
 fresh && run api-tapqueue node tests/api-tapqueue.js
 fresh && run api-posmove node tests/api-posmove.js
 fresh && run api-v1 node tests/api-v1.js
+fresh OPEN_METEO_BASE=http://127.0.0.1:8096 OPEN_METEO_MARINE_BASE=http://127.0.0.1:8096 && run api-atlantic node tests/api-atlantic.js
 if [ "${1:-}" != "--no-browser" ]; then
   fresh && run pw-login node tests/pw-login.js "$TMP"
   fresh && run pw-tapqueue node tests/pw-tapqueue.js "$TMP"
