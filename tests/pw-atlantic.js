@@ -1,0 +1,31 @@
+// Atlantic weather chart (/atlantic.html): loads the bundled snapshot, draws, zooms, drags, picks a zone. Usage: node tests/pw-atlantic.js [screenshot dir]
+const { chromium } = require('playwright');
+const B = process.env.BASE || 'http://localhost:8091', OUT = process.argv[2] || '/tmp';
+let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
+(async () => {
+  const sid = await require('./lib/session')(B);
+  const br = await chromium.launch({ executablePath: process.env.CHROME || undefined });
+  const ctx = await br.newContext({ viewport: { width: 1000, height: 700 } });
+  await ctx.addCookies([{ name: 'cn_sid', value: sid, url: B }]);
+  const pg = await ctx.newPage(); const errs = [];
+  pg.on('pageerror', e => errs.push(String(e)));
+  pg.on('console', m => { if (m.type() === 'error' && !/font|fonts\.g|net::ERR|Failed to load resource/i.test(m.text())) errs.push(m.text()); });
+  await pg.goto(B + '/atlantic.html'); await pg.waitForSelector('#msg', { state: 'detached', timeout: 15000 });
+  ok(errs.length === 0, 'no page errors ' + errs.join('|'));
+  const lit = async () => pg.evaluate(() => { const c = document.querySelector('.amap-pane canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) n++; return n; });
+  ok(await lit() > 200, 'weather canvas has pixels');
+  ok(await pg.locator('.amap-root svg rect').count() === 23, '23 zone boxes drawn'); ok(await pg.locator('.amap-root svg path').count() >= 1, 'route drawn');
+  ok(await pg.locator('.zlab').count() === 23, '23 zone labels');
+  const z0 = await pg.evaluate(() => 0 + window.__z0 || 0);
+  await pg.click('#zIn'); await pg.waitForTimeout(700); ok(await lit() > 200, 'still drawn after zoom in');
+  const box = await pg.locator('#map').boundingBox();
+  await pg.mouse.move(box.x + 500, box.y + 300); await pg.mouse.down(); await pg.mouse.move(box.x + 380, box.y + 260, { steps: 6 }); await pg.mouse.up(); await pg.waitForTimeout(600);
+  ok(await lit() > 200, 'still drawn after drag');
+  await pg.click('#zFit'); await pg.waitForTimeout(900);
+  await pg.mouse.click(box.x + box.width / 2, box.y + box.height / 2); await pg.waitForTimeout(300);
+  ok(/Zone|zone|[A-W]{2}/.test(await pg.locator('#side').innerText()), 'side panel shows a zone after a click');
+  await pg.click('#layers button[data-l=sea]'); await pg.waitForTimeout(300); ok(await lit() > 100, 'sea layer draws');
+  await pg.screenshot({ path: OUT + '/atlantic.png' });
+  ok(errs.length === 0, 'no page errors at end ' + errs.join('|'));
+  await br.close(); process.exit(fails ? 1 : 0);
+})();
