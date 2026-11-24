@@ -1078,6 +1078,19 @@ app.delete('/api/positions/:id', (req, res) => {
   if (!r.changes) return res.status(404).json({ error: 'not found' });
   res.json({ ok: true });
 });
+// Move a recorded position (drag on the voyage map, or typed coordinates). Master only (crew are refused by the gate).
+// The time stays; accuracy is cleared because the position is now what the master says it is; the old position is kept in the audit.
+app.put('/api/positions/:id', (req, res) => {
+  const b = req.body || {}, lat = Number(b.lat), lon = Number(b.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return res.status(400).json({ error: 'lat must be -90 to 90 and lon -180 to 180' });
+  if (lat === 0 && lon === 0) return res.status(400).json({ error: 'position 0,0 is not accepted' });
+  const before = db.prepare(`SELECT * FROM positions WHERE id = ? AND ${ACTIVE}`).get(req.params.id);
+  if (!before) return res.status(404).json({ error: 'not found' });
+  db.prepare("UPDATE positions SET lat = ?, lon = ?, acc = NULL, source = 'typed' WHERE id = ?").run(lat, lon, before.id);
+  const after = db.prepare('SELECT * FROM positions WHERE id = ?').get(before.id);
+  auditRaw('position-move', before.id, before.crew_id, posView(before), posView(after), 'api');
+  res.json(posView(after));
+});
 app.post('/api/positions/:id/restore', (req, res) => {
   const r = db.prepare('UPDATE positions SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL').run(req.params.id);
   if (!r.changes) return res.status(404).json({ error: 'not found' });

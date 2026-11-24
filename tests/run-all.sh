@@ -24,6 +24,7 @@ run engine node engine/hor-engine.test.js
 run tide-engine node --test engine/tide.test.js
 fresh && run api-auth node tests/api-auth.js
 fresh && run api-tapqueue node tests/api-tapqueue.js
+fresh && run api-posmove node tests/api-posmove.js
 fresh && run api-v1 node tests/api-v1.js
 if [ "${1:-}" != "--no-browser" ]; then
   fresh && run pw-login node tests/pw-login.js "$TMP"

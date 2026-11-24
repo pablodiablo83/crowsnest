@@ -206,7 +206,7 @@
       if (!first && !last) dots += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.4"/>';
     });
     var ends = '', f = used[0], l = used[used.length - 1];
-    if (f) { var a0 = byId[f.id]; ends += '<circle cx="' + a0[0].toFixed(1) + '" cy="' + a0[1].toFixed(1) + '" r="8" fill="#8FE3B0" stroke="#00154C" stroke-width="3"/><text x="' + (a0[0] + 12).toFixed(1) + '" y="' + (a0[1] + 4).toFixed(1) + '">Start</text>'; }
+    if (f) { var a0 = this.dragAt || byId[f.id]; if (this.editStart) ends += '<circle cx="' + a0[0].toFixed(1) + '" cy="' + a0[1].toFixed(1) + '" r="18" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="4 3"/>'; this.startPx = a0; ends += '<circle cx="' + a0[0].toFixed(1) + '" cy="' + a0[1].toFixed(1) + '" r="8" fill="#8FE3B0" stroke="#00154C" stroke-width="3"/><text x="' + (a0[0] + 12).toFixed(1) + '" y="' + (a0[1] + 4).toFixed(1) + '">Start</text>'; }
     if (l && l !== f) { var a1 = byId[l.id]; ends += '<circle cx="' + a1[0].toFixed(1) + '" cy="' + a1[1].toFixed(1) + '" r="9" fill="#F5B041" stroke="#00154C" stroke-width="3"/><text x="' + (a1[0] + 13).toFixed(1) + '" y="' + (a1[1] + 4).toFixed(1) + '">' + (d.voyage.end ? 'End' : 'Latest') + '</text>'; }
     var selSvg = '';
     if (this.sel && byId[this.sel]) { var s = byId[this.sel]; selSvg = '<circle cx="' + s[0].toFixed(1) + '" cy="' + s[1].toFixed(1) + '" r="13" fill="none" stroke="#fff" stroke-width="3"/><circle cx="' + s[0].toFixed(1) + '" cy="' + s[1].toFixed(1) + '" r="13" fill="none" stroke="#00154C" stroke-width="1" stroke-dasharray="4 4"/>'; }
@@ -234,10 +234,15 @@
     function rel(e) { var r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
     el.addEventListener('pointerdown', function (e) {
       if (e.target.closest('.tm-ctrl,.tm-attr,.tm-msg')) return;
+      if (self.editStart && self.startPx && !Object.keys(ptrs).length) {
+        var q0 = rel(e);
+        if (Math.hypot(q0[0] - self.startPx[0], q0[1] - self.startPx[1]) < 32) { el.setPointerCapture(e.pointerId); self.mk = e.pointerId; self.dragAt = q0; self.drawTrack(); e.preventDefault(); return; }
+      }
       el.setPointerCapture(e.pointerId); ptrs[e.pointerId] = rel(e); moved = 0; start = rel(e); last = null;
       el.classList.add('drag');
     });
     el.addEventListener('pointermove', function (e) {
+      if (self.mk === e.pointerId) { self.dragAt = rel(e); self.drawTrack(); return; }
       if (!ptrs[e.pointerId]) return;
       var now = rel(e), prev = ptrs[e.pointerId], ids = Object.keys(ptrs);
       if (ids.length === 1) { var dx = now[0] - prev[0], dy = now[1] - prev[1]; moved += Math.abs(dx) + Math.abs(dy); ptrs[e.pointerId] = now; self.panBy(dx, dy); }
@@ -251,6 +256,11 @@
       }
     });
     function up(e) {
+      if (self.mk === e.pointerId) {
+        var at = self.dragAt, ok = e.type === 'pointerup' && at; self.mk = null; self.dragAt = null;
+        if (ok) { var ll = self.unpx(at[0], at[1]); if (self.onmove) self.onmove(ll.lat !== undefined ? ll.lat : ll[0], ll.lon !== undefined ? ll.lon : ll[1]); }
+        self.drawTrack(); return;
+      }
       if (!ptrs[e.pointerId]) return;
       var wasOne = Object.keys(ptrs).length === 1; delete ptrs[e.pointerId];
       if (!Object.keys(ptrs).length) el.classList.remove('drag');
@@ -367,7 +377,55 @@
       else { var k = lastKnown(); map.setView(k ? k.lat : 56.5, k ? k.lon : -5.5, k ? 10 : 6); }
     }
     say('');
+    refreshStart();
   }
+
+  /* ------------------------------------------------------------ amend the start */
+  function parseCoord(str, isLat) {   // "55 52.123 N", 55°52'07"N, 55.8687, -4.76 -> degrees, or NaN
+    var s = String(str || '').trim().toUpperCase().replace(/[′’']/g, "'").replace(/[″”"]/g, '"').replace(/,/g, '.');
+    if (!s) return NaN;
+    var hem = s.match(/[NSEW]/g);
+    if (hem && hem.length !== 1) return NaN;
+    var h = hem ? hem[0] : null;
+    if (h && (isLat ? 'NS' : 'EW').indexOf(h) < 0) return NaN;
+    var nums = s.replace(/[NSEW]/g, ' ').match(/-?\d+(?:\.\d+)?/g);
+    if (!nums || nums.length > 3 || /[^0-9.\-\s°'"]/.test(s.replace(/[NSEW]/g, ''))) return NaN;
+    var d = Math.abs(parseFloat(nums[0])), m = nums[1] != null ? parseFloat(nums[1]) : 0, sec = nums[2] != null ? parseFloat(nums[2]) : 0;
+    if (nums.length > 1 && (m < 0 || m >= 60)) return NaN;
+    if (nums.length > 2 && (sec < 0 || sec >= 60)) return NaN;
+    if (nums.length > 1 && nums[0].indexOf('.') >= 0) return NaN;   // 55.5 12 is ambiguous
+    var v = d + m / 60 + sec / 3600;
+    if (nums[0].charAt(0) === '-' || h === 'S' || h === 'W') v = -v;
+    return Math.abs(v) <= (isLat ? 90 : 180) ? v : NaN;
+  }
+  function firstUsed() { return S.data ? S.data.points.find(function (p) { return p.used; }) : null; }
+  function refreshStart() {
+    var f = firstUsed(), card = $('#startCard');
+    card.hidden = !f; if (!f) return;
+    $('#stLat').value = ddm(f.lat, 'N', 'S'); $('#stLon').value = ddm(f.lon, 'E', 'W');
+  }
+  async function saveStart(lat, lon) {
+    var f = firstUsed(); if (!f) return;
+    var old = { lat: f.lat, lon: f.lon };
+    try {
+      await api('/api/positions/' + encodeURIComponent(f.id), { method: 'PUT', headers: J, body: JSON.stringify({ lat: lat, lon: lon }) });
+    } catch (e) { say(e && e.body && e.body.error ? 'Not saved: ' + e.body.error : 'Not saved. Moving the start needs a connection.', true); return; }
+    await loadVoyage(false);
+    toast('Start moved', async function () {
+      try { await api('/api/positions/' + encodeURIComponent(f.id), { method: 'PUT', headers: J, body: JSON.stringify(old) }); await loadVoyage(false); toast('Start put back'); }
+      catch (x) { toast('Could not undo. Check the connection.'); }
+    });
+  }
+  map.onmove = function (lat, lon) { setMove(false); saveStart(Math.round(lat * 1e6) / 1e6, Math.round(lon * 1e6) / 1e6); };
+  function setMove(on) { map.editStart = on; $('#moveBtn').setAttribute('aria-pressed', String(on)); $('#moveBtn').textContent = on ? 'Drag the Start marker (tap to cancel)' : 'Move start on map'; map.drawTrack(); }
+  $('#moveBtn').addEventListener('click', function () { setMove(!map.editStart); });
+  $('#stSave').addEventListener('click', function () {
+    var la = parseCoord($('#stLat').value, true), lo = parseCoord($('#stLon').value, false);
+    if (isNaN(la) || isNaN(lo)) { say('Check the coordinates. Use degrees and minutes like 55 52.123 N and 004 45.678 W, or decimal like 55.8687 and -4.7613.', true); return; }
+    if (la === 0 && lo === 0) { say('0,0 is not accepted.', true); return; }
+    saveStart(Math.round(la * 1e6) / 1e6, Math.round(lo * 1e6) / 1e6);
+  });
+  window.__cnParseCoord = parseCoord;   // for testing
   async function init() {
     try { S.settings = await api('/api/track/settings'); } catch (e) { S.settings = { intervalMin: 15, intervals: [0, 5, 10, 15, 30, 60] }; }
     $('#intSel').innerHTML = S.settings.intervals.map(function (n) { return '<option value="' + n + '"' + (n === S.settings.intervalMin ? ' selected' : '') + '>' + (n ? 'Every ' + n + ' minutes' : 'Off (taps and manual only)') + '</option>'; }).join('');

@@ -139,6 +139,14 @@ select.h-in option{color:#00154C}
       <div class="t-status" id="status" role="status" aria-live="polite"></div>
     </section>
 
+    <section class="h-card" id="startCard" aria-labelledby="hStart" hidden>
+      <div class="h-head"><div><h2 id="hStart">Amend the start</h2><p class="h-sub">Press Move start, then drag the green Start marker to the right place. Or type the position for a more exact start.</p></div></div>
+      <div class="h-rowlinks"><button type="button" class="h-btn ghost" id="moveBtn" aria-pressed="false">Move start on map</button></div>
+      <div class="h-fld"><label for="stLat">Latitude <span class="hint">e.g. 55 52.123 N, 55°52'07"N or 55.8687</span></label><input class="h-in" id="stLat" inputmode="text" autocomplete="off" autocapitalize="characters"></div>
+      <div class="h-fld"><label for="stLon">Longitude <span class="hint">e.g. 004 45.678 W or -4.7613</span></label><input class="h-in" id="stLon" inputmode="text" autocomplete="off" autocapitalize="characters"></div>
+      <div class="h-rowlinks"><button type="button" class="h-btn primary" id="stSave">Save start position</button></div>
+    </section>
+
     <section class="h-card" id="fixesCard" aria-labelledby="hFix">
       <div class="h-head"><div><h2 id="hFix">Recorded positions</h2><p class="h-sub" id="fixSub"></p></div></div>
       <details class="h-more" id="fixDetails"><summary>Show the list</summary><div><ul class="t-fixes" id="fixList"></ul></div></details>
