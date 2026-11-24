@@ -55,9 +55,9 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
     const { ctx, page } = await mk(390, 844);
     ok(await page.evaluate(() => document.getElementById('hero').getBoundingClientRect().top < 120), 'phone: strip right under the header');
     await page.evaluate(() => window.scrollTo(0, 700)); await page.waitForTimeout(250);
-    ok(await page.evaluate(() => { const h = document.getElementById('hero').getBoundingClientRect(); return h.top <= 2 && h.bottom > 100; }), 'phone: after scrolling the control strip stays pinned at the top');
-    ok(await page.evaluate(() => document.documentElement.classList.contains('scrolled') && getComputedStyle(document.getElementById('heroNote')).display === 'none'), 'phone: scrolled strip folds its notes away');
-    ok(await page.locator('#btnRest').isVisible(), 'phone: the toggle is still on screen while scrolled');
+    ok(await page.evaluate(() => document.getElementById('hero').getBoundingClientRect().bottom < 0 && getComputedStyle(document.getElementById('hero')).position !== 'sticky' && getComputedStyle(document.getElementById('hero')).position !== 'fixed'), 'phone: the control strip scrolls away with the page (not fixed)');
+    ok(await page.evaluate(() => [...document.querySelectorAll('.dapp *')].filter(e => getComputedStyle(e).position === 'fixed' && !e.closest('.ddock') && !e.closest('.dsheet') && !e.closest('.dasst') && !e.closest('.dlocation-box') && !e.closest('.htoast')).length === 0), 'phone: the only fixed things are the dock, sheets and toasts');
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.click('#moreBtn'); ok(await page.locator('#moreSheet a[href="/passage.html"]').isVisible(), 'phone: More opens the other pages'); await page.keyboard.press('Escape'); ok(!(await page.locator('#moreSheet').isVisible()), 'phone: Escape closes More');
     await ctx.close();
   }

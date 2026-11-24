@@ -2,7 +2,7 @@
    scoped to body.dash so log.html (which shares dashboard.css) is untouched. Layouts by window width only (never by device):
    >= 1000 px  rail left + 12-column picture grid + dock (iPad landscape, desktop)
    600-999 px  control strip on top, 2 or 3 columns of pictures (iPhone Duo upright, iPad portrait)
-   < 600 px    iPhone: control strip pinned under the header, 2 columns, Position full width */
+   < 600 px    iPhone: control strip under the header (scrolls away with the page, never fixed), 2 columns, Position full width */
 :root{--bg:#00154C;--t1:#0E2A66;--t2:#163A82;--line:rgba(255,255,255,.16);--tx:#fff;--mu:#C5D2E8;--acc:#F5B041;--rest:#38BDD9;--ok:#8FE3B0;--bad:#FF6B5B;--onacc:#00154C;
   --sea:#0F3A7A;--land:#4C5C77;--coast:#9DB0CF;--grid:rgba(255,255,255,.14);--cl1:#EEF3FB;--cl2:#9FB3D3;--w1:#2B6CB0;--w2:#3FA36B;--w3:#E8C547;--rail:#050B22;--dockh:84px}
 html.night{--bg:#000;--t1:#120303;--t2:#220606;--line:rgba(255,70,50,.3);--tx:#FF6A4D;--mu:#B8503B;--acc:#FF6A4D;--rest:#FF6A4D;--ok:#FF6A4D;--bad:#FF9C80;--onacc:#000;
@@ -20,7 +20,7 @@ body.dash svg{display:block;flex:none}
 .tag{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--mu)}
 .tag svg{color:var(--acc)}
 /* ---- the rail / control strip ---- */
-body.dash .hero{background:var(--rail);border:1px solid var(--line);border-radius:26px;padding:16px;margin:0 0 12px;position:sticky;top:max(env(safe-area-inset-top,0px),var(--safe-area-inset-top,0px));z-index:5}
+body.dash .hero{background:var(--rail);border:1px solid var(--line);border-radius:26px;padding:16px;margin:0 0 12px}
 .rstate{display:flex;align-items:center;gap:14px}
 .rglyph{width:76px;height:76px;border-radius:22px;background:rgba(255,255,255,.1);color:var(--tx);display:grid;place-items:center;flex:none}
 .rglyph svg{display:none !important}.rglyph.work{background:var(--acc);color:var(--onacc)}.rglyph.work .g-work{display:block !important}.rglyph.rest{background:var(--rest);color:var(--onacc)}.rglyph.rest .g-rest{display:block !important}
@@ -76,7 +76,6 @@ body.dash .herr{color:var(--acc)}
   body.dash .hnote{grid-area:note;margin:0}.hlinks{grid-area:links;margin:0}body.dash .hvoy{display:none}body.dash .herr{grid-area:err}
   .dtop{padding:10px 14px 6px}.dclock{display:none}.dmain{padding-left:12px;padding-right:12px}
 }
-html.scrolled body.dash .hnote,html.scrolled body.dash .hlinks,html.scrolled body.dash .herr{display:none}
 /* Duo upright / iPad portrait */
 @media (min-width:600px) and (max-width:999px){
   .dtiles{grid-template-columns:1fr 1fr;grid-auto-rows:200px}

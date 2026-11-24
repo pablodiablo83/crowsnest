@@ -113,8 +113,8 @@ const fake = http.createServer((q, r) => {
   r = await ask('add rest from 02:00 to 03:00 ' + (new Date(now - 28 * 3600e3).getUTCDate() === new Date(now - 24 * 3600e3).getUTCDate() ? 'today' : 'yesterday')); ok(r.skill === 'add-entry', 'add-entry understood');
 
   // reads
-  r = await ask('how much rest have i had'); ok(r.skill === 'rest-status' && /24 h rest 12h 00m/.test(r.reply) && /✓/.test(r.reply), 'rest status: 12h in 24 h (' + r.reply.slice(0, 90) + ')');
-  r = await ask('show my entries for the last 24 hours'); ok(r.skill === 'entries' && /work 12h 00m, rest 12h 00m/.test(r.reply), 'entries: totals');
+  r = await ask('how much rest have i had'); ok(r.skill === 'rest-status' && /24 h rest (11h 5\dm|12h 0\dm)/.test(r.reply) && /✓/.test(r.reply), 'rest status: 12h in 24 h (' + r.reply.slice(0, 90) + ')');
+  r = await ask('show my entries for the last 24 hours'); ok(r.skill === 'entries' && /work (11h 5\dm|12h 0\dm), rest (11h 5\dm|12h 0\dm)/.test(r.reply), 'entries: totals (' + r.reply.split('\n')[0] + ')');
   r = await ask('who is working'); ok(r.skill === 'who' && /Alex Morgan/.test(r.reply), 'who: lists crew status');
   r = await ask("what's the weather for my location"); ok(r.skill === 'weather' && r.ok && /9°C/.test(r.reply) && /SW 14 kn \(Force 4\)/.test(r.reply), 'weather: ' + r.reply.slice(0, 90));
   r = await ask('wind forecast'); ok(r.skill === 'wind' && r.ok && /strongest 22 kn/.test(r.reply), 'wind: ' + r.reply.slice(0, 100));

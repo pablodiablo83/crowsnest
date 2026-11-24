@@ -33,10 +33,6 @@
     b.addEventListener('click', function () { $('agentInput').value = b.getAttribute('data-say'); $('agentForm').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); });
   });
 
-  // ---- compact control strip while scrolled (narrow screens): the toggle and rest bars stay, the notes fold away
-  var sc = false;
-  window.addEventListener('scroll', function () { var y = window.scrollY; if (!sc && y > 90) { sc = true; html.classList.add('scrolled'); } else if (sc && y < 20) { sc = false; html.classList.remove('scrolled'); } }, { passive: true });
-
   // ---- More sheet (narrow screens)
   var sheet = $('moreSheet');
   function openMore(on) { sheet.hidden = !on; if (on) { var a = sheet.querySelector('a'); if (a) a.focus(); } else { var mb = $('moreBtn'); if (mb) mb.focus(); } }

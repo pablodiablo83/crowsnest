@@ -130,8 +130,8 @@
     f.style.width = Math.max(0, Math.min(100, mins / max * 100)) + '%'; m.style.left = (req / max * 100) + '%';
     box.className = 'rbar' + (kind === 'breach' ? ' bad' : kind === 'gap' || kind === 'building' ? ' unk' : '');
     $('rb' + id + 'V').textContent = fmtMin(mins);
-    n.textContent = kind === 'compliant' ? '\u2713 ' + fmtMin(mins - req) + ' above the ' + minLabel + ' minimum'
-      : kind === 'breach' ? '\u2717 ' + fmtMin(req - mins) + ' below the ' + minLabel + ' minimum'
+    n.textContent = kind === 'compliant' ? '\u2713 ' + fmtMin(mins - req) + ' above minimum'
+      : kind === 'breach' ? '\u2717 ' + fmtMin(req - mins) + ' below ' + minLabel
       : kind === 'building' ? '\u2026 record still building' : '? cannot be confirmed: unlogged time';
   }
   function render() {
