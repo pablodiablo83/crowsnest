@@ -11,7 +11,13 @@
   async function load() {
     $('sRefresh').disabled = true;
     try {
-      const r = await fetch('/api/status', { cache: 'no-store' });
+      // never sit on "Loading" (24 Nov 2026, Pabs saw that): give up after 20 s and say so
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = setTimeout(() => ctl && ctl.abort(), 20000);
+      let r;
+      try { r = await fetch('/api/status', { cache: 'no-store', signal: ctl ? ctl.signal : undefined }); }
+      catch (e) { throw (e && e.name === 'AbortError') ? new Error('The server did not answer within 20 seconds') : e; }
+      finally { clearTimeout(timer); }
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || ('The server answered ' + r.status));
       render(d);
@@ -45,6 +51,8 @@
     const b = $('sCopy'); b.textContent = ok ? 'Copied' : 'Select the text to copy';
     setTimeout(() => { b.textContent = 'Copy'; }, 2000);
   }
+  // a script error anywhere on the page is shown instead of a silent "Loading"
+  window.addEventListener('error', e => { $('sOverall').innerHTML = '<span class="s-dot s-big bad"></span><b>Page error: ' + esc(e.message) + '</b>'; });
   $('sRefresh').onclick = load;
   $('sCopy').onclick = copy;
   load();
