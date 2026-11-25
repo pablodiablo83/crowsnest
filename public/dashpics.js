@@ -156,15 +156,66 @@
     }).catch(function () { coastLoading = null; return null; });
     return coastLoading;
   }
-  var NICE = [0.5, 1, 2, 5, 10, 20, 50, 100, 200];
+  // nearest land overall, and the nearest within 15 degrees ahead and 30 degrees behind (by the course made good), from the decoded coastline.
+  // Cached per 0.1 degree and 20 degrees of course. Returns up to three points, nearest first, each { lat, lon, nm }.
+  var anchorCache = { key: '', val: [] };
+  function landAnchors(fix, cog) {
+    var key = Math.round(fix.lat * 10) + ',' + Math.round(fix.lon * 10) + ',' + (cog == null ? 'x' : Math.round(cog / 20));
+    if (anchorCache.key === key) return anchorCache.val;
+    var k = Math.cos(fix.lat * Math.PI / 180), rad = Math.PI / 180;
+    function scan(hd) {
+      var bd = { any: 1e18, ahead: 1e18, behind: 1e18 }, best = {}, i, j, r, p, lon, lat, dx, dy, d2, brg, diff;
+      for (i = 0; i < coast.length; i++) {
+        r = coast[i];
+        var bx = Math.max(r.bb[0] - fix.lon, 0, fix.lon - r.bb[2]) * k, by = Math.max(r.bb[1] - fix.lat, 0, fix.lat - r.bb[3]);
+        if (bx * bx + by * by > Math.max(bd.any, hd == null ? 0 : Math.max(bd.ahead, bd.behind))) continue;
+        p = r.p;
+        for (j = 0; j < p.length; j += 2) {
+          lon = p[j]; lat = p[j + 1]; dx = (lon - fix.lon) * k; dy = lat - fix.lat; d2 = dx * dx + dy * dy;
+          if (d2 < bd.any) { bd.any = d2; best.any = [lat, lon]; }
+          if (hd != null && d2 < Math.max(bd.ahead, bd.behind)) {
+            brg = (Math.atan2(dx, dy) / rad + 360) % 360; diff = Math.abs(((brg - hd + 540) % 360) - 180);
+            if (diff <= 15 && d2 < bd.ahead) { bd.ahead = d2; best.ahead = [lat, lon]; }
+            else if (diff >= 150 && d2 < bd.behind) { bd.behind = d2; best.behind = [lat, lon]; }
+          }
+        }
+      }
+      return { bd: bd, best: best };
+    }
+    var res = scan(cog == null ? null : cog), out = [];
+    if (cog == null && res.best.any) {   // no course: the nearest land, and the nearest the other way
+      var a = res.best.any, brg0 = (Math.atan2((a[1] - fix.lon) * k, a[0] - fix.lat) / rad + 360) % 360, r2 = scan((brg0 + 180) % 360);
+      res.best.behind = res.best.any; res.bd.behind = res.bd.any; res.best.ahead = r2.best.ahead; res.bd.ahead = r2.bd.ahead;
+    }
+    ['any', 'ahead', 'behind'].forEach(function (n) {
+      var q = res.best[n]; if (!q) return; var nm = Math.sqrt(res.bd[n]) * 60; if (nm > 3200) return;
+      if (out.some(function (o) { return Math.abs(o.lat - q[0]) * 60 < 15 && Math.abs(o.lon - q[1]) * k * 60 < 15; })) return;
+      out.push({ lat: q[0], lon: q[1], nm: nm });
+    });
+    out.sort(function (a, b) { return a.nm - b.nm; });
+    anchorCache = { key: key, val: out };
+    return out;
+  }
+  var NICE = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000];
   function chart(fix, path, w, h, cog) {
     w = w || 400; h = h || 300;
     var tail = (path || []).slice(-24).filter(function (p) { return Math.abs(p[0] - fix.lat) < 3 && Math.abs(p[1] - fix.lon) < 5; });
     var pts = tail.concat([[fix.lat, fix.lon]]);
     var k = Math.cos(fix.lat * Math.PI / 180);
-    // view: all the recent trail plus the boat, with room around it; never tighter than 8 nm across, never wider than 120 nm
+    // view: all the recent trail plus the boat, with room around it. Close to land (within 40 nm) the view stays local: never tighter than 8 nm
+    // across, never wider than 120 nm. In open water it zooms out until the nearest land behind and ahead are in the picture (25 Nov 2026,
+    // Pabs, mid-Atlantic: the Canaries on one side, the Caribbean on the other), with the distance to each marked.
+    var anchors = (coast && !fix.none) ? landAnchors(fix, cog) : [];
+    var far = anchors.length && anchors[0].nm > 40;
     var dLat = Math.max.apply(null, pts.map(function (p) { return Math.abs(p[0] - fix.lat); })), dLon = Math.max.apply(null, pts.map(function (p) { return Math.abs(p[1] - fix.lon) * k; }));
-    var halfNm = Math.min(60, Math.max(4, Math.max(dLat, dLon) * 60 * 1.5 + 1.5)), halfLat = halfNm / 60 * (h / Math.min(w, h)) , halfLon = halfNm / 60 * (w / Math.min(w, h));
+    var halfNm = Math.min(60, Math.max(4, Math.max(dLat, dLon) * 60 * 1.5 + 1.5));
+    if (far) {
+      var nx = Math.max(dLon * 60, 20), ny = Math.max(dLat * 60, 20);
+      anchors.forEach(function (an) { nx = Math.max(nx, Math.abs(an.lon - fix.lon) * k * 60); ny = Math.max(ny, Math.abs(an.lat - fix.lat) * 60); });
+      nx *= 1.18; ny *= 1.25;
+      halfNm = Math.min(2400, Math.max(halfNm, nx * Math.min(w, h) / w, ny * Math.min(w, h) / h));
+    } else anchors = [];
+    var halfLat = halfNm / 60 * (h / Math.min(w, h)), halfLon = halfNm / 60 * (w / Math.min(w, h));
     var sc = Math.min(w, h) / (2 * halfNm / 60);   // px per degree of latitude
     var pr = function (la, lo) { return [w / 2 + (lo - fix.lon) * k * sc, h / 2 - (la - fix.lat) * sc]; };
     var bb = [fix.lon - halfLon / k, fix.lat - halfLat, fix.lon + halfLon / k, fix.lat + halfLat];
@@ -177,15 +228,21 @@
         d += 'Z'; }
       if (d) land = '<path d="' + d + '" fill="var(--land)" fill-rule="evenodd" stroke="var(--coast)" stroke-width="2.4" stroke-linejoin="round"/>';
     }
-    var step = halfNm > 30 ? 1 : halfNm > 12 ? 0.5 : halfNm > 5 ? 0.25 : 0.1, grid = '', la, lo;
+    var step = halfNm > 900 ? 10 : halfNm > 400 ? 5 : halfNm > 160 ? 2 : halfNm > 30 ? 1 : halfNm > 12 ? 0.5 : halfNm > 5 ? 0.25 : 0.1, grid = '', la, lo;
     for (la = Math.ceil(bb[1] / step) * step; la <= bb[3]; la += step) grid += '<line x1="0" x2="' + w + '" y1="' + pr(la, 0)[1].toFixed(1) + '" y2="' + pr(la, 0)[1].toFixed(1) + '"/>';
     for (lo = Math.ceil(bb[0] / step) * step; lo <= bb[2]; lo += step) grid += '<line y1="0" y2="' + h + '" x1="' + pr(0, lo)[0].toFixed(1) + '" x2="' + pr(0, lo)[0].toFixed(1) + '"/>';
     var trail = tail.length ? '<polyline points="' + tail.concat([[fix.lat, fix.lon]]).map(function (p) { return pr(p[0], p[1]).map(function (v) { return v.toFixed(1); }).join(','); }).join(' ') + '" fill="none" stroke="var(--acc)" stroke-width="6" stroke-linecap="round" stroke-dasharray="1 11" opacity=".95"/>' : '';
     var head = cog;
     if (head == null && tail.length) { var a = tail[tail.length - 1], dx = (fix.lon - a[1]) * k, dy = fix.lat - a[0]; if (Math.abs(dx) + Math.abs(dy) > 1e-5) head = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360; }
+    var marks = anchors.map(function (an) {
+      var q = pr(an.lat, an.lon), x = Math.max(14, Math.min(w - 14, q[0])), y = Math.max(16, Math.min(h - 44, q[1])), left = x > w / 2, near = Math.hypot(x - w / 2, y - h / 2) < 80;
+      return '<line x1="' + (w / 2) + '" y1="' + (h / 2) + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="var(--tx)" stroke-opacity=".5" stroke-width="2" stroke-dasharray="3 7"/>' +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="6" fill="none" stroke="var(--tx)" stroke-width="3"/>' +
+        '<text x="' + (near ? x : left ? x - 11 : x + 11).toFixed(1) + '" y="' + (near ? y - 14 : y + 5).toFixed(1) + '" text-anchor="' + (near ? 'middle' : left ? 'end' : 'start') + '" font-size="14" font-weight="900" fill="var(--tx)" stroke="var(--sea)" stroke-width="4" paint-order="stroke">' + Math.round(an.nm).toLocaleString('en-GB') + ' nm</text>';
+    }).join('');
     var nm = NICE.filter(function (n) { return n / 60 * sc < w * 0.3; }).pop() || NICE[0], bar = nm / 60 * sc;
     return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Chart of your position" style="width:100%;height:100%;border-radius:16px"><rect width="' + w + '" height="' + h + '" fill="var(--sea)"/><g stroke="var(--grid)" stroke-width="1">' + grid + '</g>' + land + trail +
-      (fix.none ? '' : '<g transform="translate(' + (w / 2) + ',' + (h / 2) + ')"><circle r="30" fill="var(--acc)" opacity=".22"/><circle r="17" fill="none" stroke="var(--acc)" stroke-width="3"/><g transform="rotate(' + (head == null ? 0 : Math.round(head)) + ')"><path d="M0 -13 L9 11 L0 6 L-9 11Z" fill="var(--acc)" stroke="#0009" stroke-width="2"/></g></g>') +
+      marks + (fix.none ? '' : '<g transform="translate(' + (w / 2) + ',' + (h / 2) + ')"><circle r="30" fill="var(--acc)" opacity=".22"/><circle r="17" fill="none" stroke="var(--acc)" stroke-width="3"/><g transform="rotate(' + (head == null ? 0 : Math.round(head)) + ')"><path d="M0 -13 L9 11 L0 6 L-9 11Z" fill="var(--acc)" stroke="#0009" stroke-width="2"/></g></g>') +
       '<g transform="translate(' + (w - 30) + ',30)" fill="var(--tx)"><circle r="19" fill="#0006"/><path d="M0 -13 L5 4 L0 1 L-5 4Z" fill="var(--acc)"/><text y="-21" text-anchor="middle" font-size="12" font-weight="900">N</text></g>' +
       '<g transform="translate(16,' + (h - 16) + ')" fill="var(--tx)" font-size="13" font-weight="900"><rect y="-4" width="' + bar.toFixed(1) + '" height="4" fill="var(--tx)"/><text y="-9" stroke="var(--land)" stroke-width="4" stroke-linejoin="round" paint-order="stroke">' + nm + ' nm</text></g></svg>';
   }
