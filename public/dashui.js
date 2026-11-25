@@ -33,11 +33,18 @@
     b.addEventListener('click', function () { $('agentInput').value = b.getAttribute('data-say'); $('agentForm').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); });
   });
 
+  // ---- boat data (NMEA) placeholder
+  var ns = $('nmeaSheet');
+  function openNmea(on) { ns.hidden = !on; if (on) $('nmeaClose').focus(); else $('nmeaBtn').focus(); }
+  $('nmeaBtn').addEventListener('click', function () { openNmea(true); });
+  $('nmeaClose').addEventListener('click', function () { openNmea(false); });
+  ns.addEventListener('click', function (e) { if (e.target === ns) openNmea(false); });
+
   // ---- More sheet (narrow screens)
   var sheet = $('moreSheet');
   function openMore(on) { sheet.hidden = !on; if (on) { var a = sheet.querySelector('a'); if (a) a.focus(); } else { var mb = $('moreBtn'); if (mb) mb.focus(); } }
   $('moreBtn').addEventListener('click', function () { openMore(true); });
   $('moreClose').addEventListener('click', function () { openMore(false); });
   sheet.addEventListener('click', function (e) { if (e.target === sheet) openMore(false); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (!sheet.hidden) openMore(false); else if (!asst.hidden) openAsst(false); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (!ns.hidden) openNmea(false); else if (!sheet.hidden) openMore(false); else if (!asst.hidden) openAsst(false); } });
 })();

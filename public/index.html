@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/dashboard.css?v=9">
-<link rel="stylesheet" href="/dash.css?v=2">
+<link rel="stylesheet" href="/dash.css?v=4">
 <link rel="stylesheet" href="/wave.css?v=2">
 <script src="/net.js?v=1"></script>
 </head>
@@ -33,6 +33,10 @@
  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></symbol>
  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></symbol>
  <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></symbol>
+ <symbol id="i-speed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-6"/></symbol>
+ <symbol id="i-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+ <symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/></symbol>
+ <symbol id="i-ice" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M3.5 7l17 10M20.5 7l-17 10M9 4l3 2 3-2M9 20l3-2 3 2"/></symbol>
  <symbol id="i-anchor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M12 7v14M7 11h10M4 15a8 8 0 0 0 16 0"/></symbol>
 </defs></svg>
 <div class="dapp">
@@ -102,6 +106,18 @@
       <div class="cap"><b id="tidesBig">&mdash;</b><span id="tidesSub">Loading…</span></div>
     </a>
 
+    <div class="tile t-sog" id="sogCard" aria-label="Speed over ground">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-speed"/></svg>Speed (SOG)</div>
+      <div class="pic" id="sogPic"></div>
+      <div class="cap"><b id="sogVal">&mdash;</b><span id="sogSub">needs a moving GPS fix</span></div>
+    </div>
+
+    <div class="tile t-cog" id="cogCard" aria-label="Course over ground">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-compass"/></svg>Course (COG)</div>
+      <div class="pic" id="cogPic"></div>
+      <div class="cap"><b id="cogVal">&mdash;</b><span id="cogSub">needs a moving GPS fix</span></div>
+    </div>
+
     <a class="tile t-wx" href="#" id="weatherCard" aria-label="Weather">
       <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-cloud"/></svg>Weather</div>
       <div class="pic" id="wxPic"></div>
@@ -125,6 +141,17 @@
       <div class="pic" id="logPic"></div>
       <div class="cap"><b><span id="logCount">&mdash;</span></b><span id="logCountSub">entries today</span><span class="dclamp dnone" id="logLast">Loading…</span></div>
     </a>
+    <div class="tile t-ice" id="iceCard" aria-label="Sea ice">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-ice"/></svg>Sea ice</div>
+      <div class="pic" id="icePic"></div>
+      <div class="cap"><b id="iceBig">&mdash;</b><span id="iceSub">Loading…</span></div>
+    </div>
+    <button type="button" class="tile t-nmea" id="nmeaBtn" aria-haspopup="dialog" aria-label="Boat data, NMEA. Not connected yet">
+      <div class="tag"><svg width="22" height="22" aria-hidden="true"><use href="#i-plug"/></svg>Boat data</div>
+      <div class="pic" id="nmeaPic"></div>
+      <div class="cap"><b>Connect NMEA</b><span>Signal K · NMEA 0183/2000 · not set up</span></div>
+    </button>
+
   </div>
 
   <div class="dlocation-box" id="locationBox" style="display:none;">
@@ -165,6 +192,14 @@
   </div>
 </div>
 
+<div class="dsheet" id="nmeaSheet" hidden role="dialog" aria-modal="true" aria-label="Boat data">
+  <div class="dsheet-in"><div class="dsheet-h"><b>Boat data (NMEA)</b><button type="button" id="nmeaClose" aria-label="Close">&times;</button></div>
+    <p class="nmea-p"><b>Not connected yet.</b> This button is a placeholder for your boat's instruments.</p>
+    <p class="nmea-p">Planned: Signal K or NMEA 0183/2000 over the boat's Wi-Fi, feeding position, SOG, COG, heading, speed through water, depth, apparent wind and battery into these tiles, and the voyage track without the phone's GPS.</p>
+    <button type="button" class="nmea-btn" disabled>Connect (coming soon)</button>
+  </div>
+</div>
+
 <section class="dasst" id="asst" hidden aria-label="Assistant">
   <form class="dagent" id="agentForm" autocomplete="off">
     <input type="text" id="agentInput" placeholder="Ask or tell Crow's Nest…" enterkeyhint="send" aria-label="Assistant">
@@ -199,9 +234,9 @@
   </div>
 </div>
 <div class="htoast" id="heroToast" style="display:none;" role="status"><span id="toastText"></span><button type="button" id="toastUndo">UNDO</button></div>
-<script src="/dashpics.js?v=1"></script>
-<script src="/dashboard.js?v=14"></script>
+<script src="/dashpics.js?v=3"></script>
+<script src="/dashboard.js?v=17"></script>
 <script src="/outbox.js?v=1"></script>
 <script src="/hero.js?v=11"></script>
-<script src="/dashui.js?v=2"></script>
+<script src="/dashui.js?v=3"></script>
 <script src="/native.js?v=1"></script>

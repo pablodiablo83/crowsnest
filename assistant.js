@@ -258,7 +258,19 @@ skill({ id: 'tides', title: 'Tides', help: 'Height now and the next high and low
     const r = await c.api('GET', '/api/tides' + (p.lat != null ? `?lat=${p.lat}&lon=${p.lon}` : '')); if (!r.ok) return c.fail(r);
     const d = r.data; if (d.analysing) return { ok: true, reply: `Still working out the tides for ${d.port || 'this port'}; try again in a minute.` }; if (d.failed || !d.events) return { ok: false, reply: `Tides are not available: ${d.error || 'no data'}.` };
     const ev = d.events.slice(0, 2).map(e => `${e.type === 'high' ? 'HW' : 'LW'} ${hm(Date.parse(e.time), c.tz)} (${e.heightM.toFixed(1)} m)`).join(', ');
-    return { ok: true, reply: `${d.port}: ${d.now ? d.now.h.toFixed(1) + ' m ' + (d.now.rising ? 'rising' : 'falling') + ' now; ' : ''}next ${ev}. Heights above ${d.datum}. Astronomical tide only (no surge).`, actions: [{ kind: 'open', label: 'Open Tides', url: '/tides.html' }] }; } });
+    return { ok: true, reply: `${d.port}: ${d.now ? d.now.h.toFixed(1) + ' m ' + (d.now.rising ? 'rising' : 'falling') + ' now; ' : ''}next ${ev}. Heights above ${d.datum}. ${d.model ? 'Modelled from sea level at your position (no gauge nearby): approximate, not for navigation near the coast.' : 'Astronomical tide only (no surge).'}`, actions: [{ kind: 'open', label: 'Open Tides', url: '/tides.html' }] }; } });
+
+skill({ id: 'ice', title: 'Sea ice', help: 'How close the sea ice is (Greenland and the north): nearest ice edge, concentration here. Not for navigation.',
+  examples: ['how close is the ice', 'sea ice near me'],
+  pages: [], apis: ['GET /api/ice'],
+  match: c => (/\b(sea ice|ice edge|ice floes?|floes?|pack ice|icebergs?|ice)\b/.test(c.t) ? {} : null),
+  run: async c => { const p = await c.where(true);
+    const r = await c.api('GET', '/api/ice' + (p.lat != null ? `?lat=${p.lat}&lon=${p.lon}` : '')); if (!r.ok) return c.fail(r);
+    const d = r.data; if (d.relevant === false) return { ok: true, reply: d.reason || 'Sea ice is not a concern here.' };
+    if (d.failed) return { ok: false, reply: 'The ice data is not available just now (' + (d.error || 'no answer') + '). The DMI and Canadian Ice Service charts are the authority.' };
+    const e = d.near50 || d.near15, here = d.here != null ? `Ice concentration here ${d.here} %. ` : '';
+    const near = e ? `Nearest ice (${e.conc} %) about ${e.distNm} nm, bearing ${String(e.bearing).padStart(3, '0')}°T.` : 'No ice of 15 % or more within about 160 nm.';
+    return { ok: true, reply: `${here}${near} Data from ${d.date || 'the latest day'}. Icebergs, bergy bits and growlers are NOT shown; not for navigation.${d.stale ? ' (old copy: the service is not answering)' : ''}`, actions: [{ kind: 'open', label: 'Open dashboard', url: '/' }] }; } });
 
 skill({ id: 'inshore', title: 'Inshore waters forecast', help: 'The Met Office inshore forecast for the nearest area.',
   examples: ['inshore forecast', 'what is the inshore waters forecast'],
@@ -308,7 +320,7 @@ skill({ id: 'undo', title: 'Undo', help: 'Reverses the last thing I did.',
   run: async () => ({ ok: true, undo: true, reply: '' }) });   // handled by the engine (replays the last undo)
 
 // priority: exact/specific first. (Registration order above is by topic; matching order is here.)
-const ORDER = ['help', 'undo', 'open', 'pattern', 'add-entry', 'edit-last', 'log', 'tap', 'rest-status', 'entries', 'who', 'voyage', 'position', 'atlantic', 'wind', 'weather', 'tides', 'inshore', 'status'];
+const ORDER = ['help', 'undo', 'open', 'pattern', 'add-entry', 'edit-last', 'log', 'tap', 'rest-status', 'entries', 'who', 'voyage', 'position', 'atlantic', 'wind', 'ice', 'weather', 'tides', 'inshore', 'status'];
 SKILLS.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
 
 // pages and routes the assistant deliberately does not cover, each with the reason (the coverage gate reads these)

@@ -34,7 +34,7 @@ const WMO_TEXT = c => c === 0 ? 'clear' : c <= 2 ? 'partly cloudy' : c === 3 ? '
 function setPic(id, html, live) { const el = $(id); if (!el || !window.CNPics) return; el.innerHTML = html; el.style.opacity = live ? '' : '.35'; }
 function initPics() {
   if (!window.CNPics) return;
-  setPic('windPic', CNPics.wind(null, 0), false); setPic('tidePic', CNPics.tide(null, []), false); setPic('wxPic', CNPics.weather(3), false);
+  setPic('windPic', CNPics.wind(null, null), false); setPic('tidePic', CNPics.tide(null), false); setPic('sogPic', CNPics.sog(null), false); setPic('cogPic', CNPics.cog(null), false); setPic('nmeaPic', CNPics.boatdata(), true); setPic('icePic', CNPics.ice(null), false); setPic('wxPic', CNPics.weather(3), false);
   setPic('trackPic', CNPics.voyage(null), false); setPic('atlPic', CNPics.atlantic(), true); setPic('logPic', CNPics.logbook(''), false);
   drawPosition();
 }
@@ -56,8 +56,8 @@ async function loadWeatherAndWind(lat, lon) {
     const w = await getJson(`/api/wind?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&days=1${m ? '&model=' + encodeURIComponent(m) : ''}`);
     const c = w.current || { kn: w.kn[0], dir: w.dir[0], gust: w.gust[0] };
     setPic('windPic', CNPics.wind(c.dir, c.kn), true);
-    setText('windSpeed', `${Math.round(c.kn)}<small style="font-size:.5em;color:var(--mu)"> kn</small> ${COMPASS(c.dir)}`);
-    setText('windSub', (c.gust != null ? `gusts ${Math.round(c.gust)} kn &middot; Force ${CNPics.force(c.kn)}` : `Force ${CNPics.force(c.kn)}`) + `<br><small style="opacity:.8">${esc(w.model.label)}</small>`);
+    setText('windSpeed', `from ${COMPASS(c.dir)}`);
+    setText('windSub', (c.gust != null ? `gusts ${Math.round(c.gust)} kn &middot; Force ${CNPics.force(c.kn)}` : `Force ${CNPics.force(c.kn)}`) + ` ${CNPics.forceWord(c.kn)}` + `<br><small style="opacity:.8">${esc(w.model.label)}</small>`);
   } catch (e) {
     setText('windSub', 'Wind unavailable');
   }
@@ -70,19 +70,37 @@ async function loadTides() {
     let port = '', fix = null; try { port = localStorage.getItem('cn_tidePort') || ''; fix = JSON.parse(localStorage.getItem('cn_fix') || 'null'); } catch (e) {}
     const q = port ? '?port=' + encodeURIComponent(port) : fix && isFinite(fix.lat) && isFinite(fix.lon) ? `?lat=${(+fix.lat).toFixed(3)}&lon=${(+fix.lon).toFixed(3)}` : '';
     const d = await getJson('/api/tides' + q);
-    if (d.failed) { setText('tidesBig', '&mdash;'); setText('tidesSub', `${esc(d.port || 'Tides')}: gauge data could not be read. Open to retry.`); return; }
+    if (d.failed) { setText('tidesBig', '&mdash;'); setText('tidesSub', /^model:/.test(d.portId || '') ? 'Tides for open water could not be worked out just now. Open to retry.' : `${esc(d.port || 'Tides')}: gauge data could not be read. Open to retry.`); return; }
     if (d.analysing) { setText('tidesSub', `${esc(d.port || 'Nearest port')}: setting up (reading a year of gauge data)&hellip;`); setTimeout(loadTides, 15000); return; }
     if (!d.configured || d.error) { setText('tidesSub', 'Tide data unavailable'); return; }
     const fmt = iso => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     const next = (d.events || []).slice(0, 2);
     let place = null; try { place = JSON.parse(localStorage.getItem('cn_tidePlace') || 'null'); } catch (e) {}
     const label = place && place.port === port && place.name !== d.port ? `${esc(place.name)} <small>(${esc(d.port)})</small>` : esc(d.port);
-    setPic('tidePic', CNPics.tide(d.now ? d.now.h : null, d.events || []), true);
+    setPic('tidePic', CNPics.tide(d), true);
     setText('tidesBig', d.now ? `${d.now.h.toFixed(1)} m ${d.now.rising ? '&uarr;' : '&darr;'}` : '&mdash;');
-    setText('tidesSub', `${label}<br>` + next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM.toFixed(1)}m`).join('<br>'));
+    setText('tidesSub', `${label}${d.model ? ' <small>&middot; world model, approximate</small>' : ''}<br>` + next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM.toFixed(1)}m`).join('<br>'));
   } catch (e) {
     setText('tidesSub', 'Tide data unavailable');
   }
+}
+
+
+// ---------- Sea ice (north of 45N only; concentration, not icebergs) ----------
+const BRG = b => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(b / 45) % 8];
+async function loadIce() {
+  const card = $('iceCard'); if (!card) return;
+  try {
+    let fix = null; try { fix = JSON.parse(localStorage.getItem('cn_fix') || 'null'); } catch (e) {}
+    const d = await getJson('/api/ice' + (fix && isFinite(fix.lat) && isFinite(fix.lon) ? `?lat=${(+fix.lat).toFixed(3)}&lon=${(+fix.lon).toFixed(3)}` : ''));
+    if (d.relevant === false) { setPic('icePic', CNPics.ice(null), false); setText('iceBig', 'Not a concern'); setText('iceSub', esc(d.reason || 'No position yet')); return; }
+    if (d.failed) { setPic('icePic', CNPics.ice(null), false); setText('iceBig', '&mdash;'); setText('iceSub', 'Ice data unavailable. Use the DMI or Canadian Ice Service charts.'); return; }
+    setPic('icePic', CNPics.ice(d), !d.stale);
+    const e = d.near50 || d.near15, here = d.here || 0;
+    setText('iceBig', here >= 15 ? `In ice ${here}%` : e ? `${e.distNm} nm ${BRG(e.bearing)}` : 'Clear');
+    const day = d.date ? new Date(d.date + 'T12:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '';
+    setText('iceSub', (e ? `Nearest ice ${e.conc}% &middot; ${String(e.bearing).padStart(3, '0')}&deg;T<br>` : 'No ice within about 160 nm<br>') + `${day}${d.stale ? ' (old)' : ''} &middot; not bergs or growlers`);
+  } catch (e) { setText('iceSub', 'Ice data unavailable'); }
 }
 
 // ---------- Hours of rest ----------
@@ -165,6 +183,18 @@ function ddm1(v, pos, neg) {
   if (min >= 60) { deg++; min = 0; }
   return `${String(deg).padStart(pos === 'N' ? 2 : 3, '0')}&deg;${min.toFixed(1).padStart(4, '0')}&prime;${v >= 0 ? pos : neg}`;
 }
+// speed and course over ground: from the phone's GPS (or, later, the boat's NMEA feed); blank until the boat is actually moving
+const COMPASS_W = d => ['north', 'north-north-east', 'north-east', 'east-north-east', 'east', 'east-south-east', 'south-east', 'south-south-east', 'south', 'south-south-west', 'south-west', 'west-south-west', 'west', 'west-north-west', 'north-west', 'north-north-west'][Math.round(d / 22.5) % 16];
+function showMotion() {
+  if (!window.CNPics) return;
+  const sog = fix && fix.sog != null && isFinite(fix.sog) ? Math.max(0, fix.sog) : null, cog = fix && fix.cog != null && isFinite(fix.cog) && sog != null && sog >= 0.5 ? fix.cog : null;
+  setPic('sogPic', CNPics.sog(sog), sog != null);
+  setText('sogVal', sog != null ? `${sog.toFixed(1)}<small style="font-size:.55em;color:var(--mu)"> kn</small>` : '&mdash;');
+  setText('sogSub', sog == null ? 'needs a moving GPS fix' : sog < 0.5 ? 'stopped' : 'speed over ground');
+  setPic('cogPic', CNPics.cog(cog), cog != null);
+  setText('cogVal', cog != null ? `${COMPASS(cog)}` : '&mdash;');
+  setText('cogSub', cog != null ? `heading ${COMPASS_W(cog)}` : sog != null && sog < 0.5 ? 'no course while stopped' : 'needs a moving GPS fix');
+}
 function showFix() {
   setText('locDdm', `${ddm1(fix.lat, 'N', 'S')} ${ddm1(fix.lon, 'E', 'W')}`);
   const mov = fix.sog != null && fix.sog >= 0.5 ? ` &middot; SOG ${fix.sog.toFixed(1)} kn${fix.cog != null ? ` &middot; COG ${String(Math.round(fix.cog)).padStart(3, '0')}&deg;` : ''}` : '';
@@ -172,7 +202,7 @@ function showFix() {
   const src = fix.source === 'gps' ? 'GPS' : fix.source === 'manual' ? 'Manual' : 'Last known';
   const acc = fix.acc ? ` &plusmn;${Math.round(fix.acc)} m` : '';
   setText('locMeta', `${src}${acc} &middot; ${ageText(fix.ts)}${mov}`);
-  drawPosition();
+  drawPosition(); showMotion();
   if (window.CNPics && !CNPics.coastReady()) CNPics.loadCoast().then(c => { if (c) drawPosition(); });
 }
 
@@ -378,6 +408,7 @@ setInterval(requestFix, 60000);
 setInterval(() => { if (fix) showFix(); }, 30000);
 loadHorSummary();
 loadTides();
+loadIce(); setInterval(loadIce, 3 * 3600000);
 loadLogTile();
 loadTrackTile(); flushQueue();
 setInterval(() => { loadHorSummary(); loadLogTile(); loadTrackTile(); }, 120000);

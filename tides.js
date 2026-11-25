@@ -9,12 +9,18 @@ const T = require('./engine/tide.js');
 const STATIONS = require('./tide-stations.js');
 const IOC = process.env.IOC_BASE || 'https://www.ioc-sealevelmonitoring.org';
 const DAY = 86400000;
+const OM_MARINE = process.env.OPEN_METEO_MARINE_BASE || 'https://marine-api.open-meteo.com';
+const MODEL_FAR_NM = 25;   // further than this from a tide gauge, the dashboard uses the world model instead
 
 module.exports = function tides(app, { db, auditRaw, getSetting, setSetting }) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS tide_stations (
       code TEXT PRIMARY KEY, analysed_at TEXT, data_from TEXT, data_to TEXT, n INTEGER, rms REAL, z0 REAL,
       cons TEXT, levels TEXT, datum TEXT, datum_offset REAL
+    );
+    CREATE TABLE IF NOT EXISTS tide_model (
+      key TEXT PRIMARY KEY, lat REAL, lon REAL, analysed_at TEXT, data_from TEXT, data_to TEXT, n INTEGER, rms REAL, z0 REAL,
+      cons TEXT, levels TEXT
     );
     CREATE TABLE IF NOT EXISTS tide_secondary (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, lat REAL, lon REAL, std_code TEXT NOT NULL, hw_times TEXT NOT NULL, lw_times TEXT NOT NULL,
@@ -219,7 +225,65 @@ module.exports = function tides(app, { db, auditRaw, getSetting, setSetting }) {
       levels: null, quality: null, coverageTo: ev.length ? ev[ev.length - 1].t : null,
       extremes: ev.filter(e => e.t >= from && e.t <= to), curve } };
   }
-  const predictAny = (port, from, to) => /^ukho:/.test(port) ? predictUkho(port.slice(5), from, to) : Promise.resolve(predictPort(port, from, to));
+
+  // ---- world tides: anywhere on the sea, from Open-Meteo's modelled sea level (tide + air pressure effect, CC BY 4.0) at the
+  //   position, fitted with the same harmonic engine as the gauges. Port id: model:<lat>,<lon> (0.1 degree grid).
+  //   Not a tide table: no local effects, no surge forecast, heights above the model's LAT. Never for pilotage.
+  const MODEL_RE = /^model:(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)$/;
+  const modelKey = (lat, lon) => { lat = Math.round(+lat * 10) / 10; lon = Math.round(+lon * 10) / 10; return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 85 && Math.abs(lon) <= 180 ? 'model:' + lat.toFixed(1) + ',' + lon.toFixed(1) : null; };
+  const mjobs = new Map();   // key -> { state, failedAt, error, promise }
+  async function fetchModelSeries(lat, lon) {
+    const r = await fetch(`${OM_MARINE}/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&past_days=92&forecast_days=1&timezone=UTC`,
+      { signal: AbortSignal.timeout(30000), headers: { 'User-Agent': 'CrowsNest/1.0 (private marine dashboard)' } });
+    if (!r.ok) throw new Error('sea level model answered ' + r.status);
+    const d = await r.json(), t = d.hourly && d.hourly.time, h = d.hourly && d.hourly.sea_level_height_msl;
+    if (!Array.isArray(t) || !Array.isArray(h)) throw new Error('sea level model sent no data');
+    const obs = []; for (let i = 0; i < t.length; i++) { const ms = Date.parse(t[i] + 'Z'); if (Number.isFinite(ms) && h[i] != null && Number.isFinite(+h[i])) obs.push({ t: ms, h: +h[i] }); }
+    return obs;
+  }
+  function analyseModel(key) {
+    const old = mjobs.get(key);
+    if (old && old.state === 'running') return old;
+    if (old && old.state === 'failed' && Date.now() - old.failedAt < RETRY_MS) return old;
+    const m = key.match(MODEL_RE), job = { state: 'running' };
+    mjobs.set(key, job);
+    job.promise = (async () => {
+      try {
+        const obs = await fetchModelSeries(+m[1], +m[2]);
+        if (obs.length < 1000) throw new Error('no sea level model data for this position (over land, or too close to the coast)');
+        const r = T.analyse(obs), L = T.levels(r.cons, r.z0), off = L.LAT;
+        const levels = Object.fromEntries(Object.entries(L).map(([k, v]) => [k, Math.round((v - off) * 1000) / 1000]));
+        db.prepare(`INSERT INTO tide_model (key, lat, lon, analysed_at, data_from, data_to, n, rms, z0, cons, levels) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(key) DO UPDATE SET analysed_at=excluded.analysed_at, data_from=excluded.data_from, data_to=excluded.data_to, n=excluded.n, rms=excluded.rms, z0=excluded.z0, cons=excluded.cons, levels=excluded.levels`)
+          .run(key, +m[1], +m[2], new Date().toISOString(), new Date(r.from).toISOString(), new Date(r.to).toISOString(), r.n, r.rms, r.z0 - off,
+            JSON.stringify(r.cons.map(c => ({ name: c.name, H: +c.H.toFixed(5), G: +c.G.toFixed(3) }))), JSON.stringify(levels));
+        mjobs.delete(key);
+      } catch (e) { job.state = 'failed'; job.error = String(e.message || e); job.failedAt = Date.now(); console.error('tide model ' + key + ' failed: ' + job.error); }
+    })();
+    return job;
+  }
+  const MODEL_NOTE = 'World model: Open-Meteo modelled sea level (CC BY 4.0) fitted to tidal constituents. Approximate: not for navigation near the coast; use a gauge or the Admiralty tables there.';
+  async function predictModel(key, from, to) {
+    const m = key.match(MODEL_RE);
+    if (!m || !modelKey(m[1], m[2])) return { status: 400, body: { error: 'bad position for the world tide model' } };
+    let row = db.prepare('SELECT * FROM tide_model WHERE key = ?').get(key);
+    // refresh weekly; wait for the first fit (a few seconds), keep serving the old fit if a refresh fails
+    if (!row || Date.now() - Date.parse(row.analysed_at) > 7 * DAY) {
+      const job = analyseModel(key);
+      if (!row && job.promise) await job.promise;
+      row = db.prepare('SELECT * FROM tide_model WHERE key = ?').get(key);
+      if (!row) { const j = mjobs.get(key); return { status: 202, body: { status: j && j.state === 'failed' ? 'failed' : 'analysing', error: j && j.error, station: { name: 'World model ' + m[1] + ', ' + m[2] } } }; }
+    }
+    const cons = JSON.parse(row.cons), levels = JSON.parse(row.levels), STEP = 10 * 60000;
+    const ts = []; for (let t = Math.floor(from / STEP) * STEP; t <= to; t += STEP) ts.push(t);
+    const hs = T.predict(cons, row.z0, ts);
+    const ext = T.extremes(cons, row.z0, from, to, 10).map(e => ({ t: e.t, h: Math.round(e.h * 100) / 100, type: e.type }));
+    return { status: 200, body: { model: true, warning: MODEL_NOTE, port: { kind: 'model', id: key, name: 'Open water ' + Math.abs(row.lat).toFixed(1) + (row.lat < 0 ? 'S' : 'N') + ' ' + Math.abs(row.lon).toFixed(1) + (row.lon < 0 ? 'W' : 'E'), lat: row.lat, lon: row.lon },
+      datum: { code: 'LAT', label: 'above LAT (model)', note: 'Heights above the lowest astronomical tide of the model fit. Approximate.' }, levels,
+      quality: { analysedAt: row.analysed_at, from: row.data_from, to: row.data_to, days: Math.round((Date.parse(row.data_to) - Date.parse(row.data_from)) / DAY), readings: row.n, rmsM: Math.round(row.rms * 100) / 100 },
+      extremes: ext, curve: ts.map((t, i) => [t, Math.round(hs[i] * 1000) / 1000]) } };
+  }
+  const predictAny = (port, from, to) => /^ukho:/.test(port) ? predictUkho(port.slice(5), from, to) : /^model:/.test(port) ? predictModel(port, from, to) : Promise.resolve(predictPort(port, from, to));
 
   // connect / disconnect (master only: crew accounts and phones cannot change settings) and status
   app.get('/api/tides/ukho', async (req, res) => {
@@ -342,14 +406,20 @@ module.exports = function tides(app, { db, auditRaw, getSetting, setSetting }) {
     const f = +req.query.from, from = Number.isFinite(f) && Math.abs(f - Date.now()) < 400 * DAY ? f : Date.now() - 6 * 3600000;
     const r = await predictAny(String(req.query.port || HOME), from, from + days * DAY);
     if (r.noStore) res.set('Cache-Control', 'no-store');
-    res.status(r.status).json(Object.assign({ source: 'Crow\'s Nest harmonic prediction from UK National Tide Gauge Network data (IOC Sea Level Monitoring Facility)' }, r.body));
+    res.status(r.status).json(Object.assign({ source: r.body.model ? MODEL_NOTE : 'Crow\'s Nest harmonic prediction from UK National Tide Gauge Network data (IOC Sea Level Monitoring Facility)' }, r.body));
   });
 
   // ---- dashboard card (kept compatible with older app builds: { configured, events: [{ type, time, heightM }] })
   app.get('/api/tides', async (req, res) => {
     // port: asked for, else nearest to the phone's position (?lat&lon), else to the vessel's last position, else home
     let port = String(req.query.port || '');
-    if (!port) port = (nearest({ lat: parseFloat(req.query.lat), lon: parseFloat(req.query.lon) }) || nearest(lastPosition()) || { code: HOME }).code;
+    if (!port) {
+      // nearest gauge, unless it is further than MODEL_FAR_NM: then the world model at the position (Greenland, open ocean)
+      let pos = { lat: parseFloat(req.query.lat), lon: parseFloat(req.query.lon) };
+      if (!nearest(pos)) pos = lastPosition();
+      const n = nearest(pos);
+      port = n && n.distanceNm <= MODEL_FAR_NM ? n.code : (n && modelKey(pos.lat, pos.lon)) || HOME;
+    }
     const now = Date.now(), r = await predictAny(port, now - 2 * 3600000, now + 36 * 3600000);
     if (r.noStore) res.set('Cache-Control', 'no-store');
     if (r.status === 202) {
@@ -358,7 +428,7 @@ module.exports = function tides(app, { db, auditRaw, getSetting, setSetting }) {
     }
     if (r.status !== 200) return res.status(r.status).json(Object.assign({ configured: true }, r.body));
     const b = r.body, cur = b.curve, i = cur.findIndex(p => p[0] >= now);
-    res.json({ configured: true, source: b.source, port: b.port.name, portId: port, datum: b.datum.label,
+    res.json({ configured: true, source: b.source || b.warning, model: !!b.model, warning: b.warning, port: b.port.name, portId: port, datum: b.datum.label,
       now: i > 0 ? { h: cur[i][1], rising: cur[i][1] > cur[i - 1][1] } : null,
       events: b.extremes.filter(e => e.t > now).slice(0, 4).map(e => ({ type: e.type === 'HW' ? 'high' : 'low', time: new Date(e.t).toISOString(), heightM: e.h })),
       curve: cur.filter(p => p[0] >= now - 2 * 3600000 && p[0] <= now + 12 * 3600000 && p[0] % (20 * 60000) === 0) });

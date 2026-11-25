@@ -28,6 +28,8 @@ fresh && run api-tapqueue node tests/api-tapqueue.js
 fresh && run api-posmove node tests/api-posmove.js
 fresh && run api-v1 node tests/api-v1.js
 fresh OPEN_METEO_BASE=http://127.0.0.1:8096 OPEN_METEO_MARINE_BASE=http://127.0.0.1:8096 && run api-atlantic node tests/api-atlantic.js
+fresh OPEN_METEO_MARINE_BASE=http://127.0.0.1:8098 NO_TIDE_WARMUP=1 && run api-tidemodel node tests/api-tidemodel.js
+fresh ICE_BASE=http://127.0.0.1:8099 NO_TIDE_WARMUP=1 && run api-ice node tests/api-ice.js
 fresh OPEN_METEO_BASE=http://127.0.0.1:8097 OPEN_METEO_MARINE_BASE=http://127.0.0.1:8097 INSHORE_URL=http://127.0.0.1:8097/x IOC_BASE=http://127.0.0.1:8097 && run api-assistant node tests/api-assistant.js
 if [ "${1:-}" != "--no-browser" ]; then
   fresh && run pw-login node tests/pw-login.js "$TMP"

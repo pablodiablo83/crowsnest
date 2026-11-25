@@ -1365,6 +1365,9 @@ app.get('/api/inshore', async (req, res) => {
 // ---- tides (tides.js: standard ports from open gauge data + the tide engine; secondary ports by the Admiralty method)
 const tidesMod = require('./tides.js')(app, { db, auditRaw, getSetting, setSetting });
 
+// ---- Sea ice near the vessel (ice.js): concentration from NSIDC via NOAA ERDDAP; aid only
+require('./ice.js')(app, { lastPosition: tidesMod.lastPosition });
+
 // ---- Atlantic weather (atlantic-wx.js): the /atlantic.html forecast, refreshed from Open-Meteo every 6 h
 const atlanticMod = require('./atlantic-wx.js')(app, { DATA_DIR, curDevice });
 

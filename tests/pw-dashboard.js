@@ -30,7 +30,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
       const small = [...document.querySelectorAll('.ddock a, .ddock button, .hbtn, .dpill')].filter(e => getComputedStyle(e).display !== 'none').map(e => ({ n: e.textContent.trim().slice(0, 12), ...r(e) })).filter(x => x.h < 44 || x.w < 44);
       return { tiles, overlap, hero, dock, btn, small, sw: document.documentElement.scrollWidth, iw: innerWidth, rail: getComputedStyle(document.getElementById('dmain')).display };
     });
-    ok(m.tiles.length === 7 && m.tiles.every(t => t.vis), name + ': 7 picture tiles shown');
+    ok(m.tiles.length === 11 && m.tiles.every(t => t.vis), name + ': 11 tiles shown (' + m.tiles.length + ')');
     ok(m.sw <= m.iw + 1, name + ': no sideways scroll (' + m.sw + ' ≤ ' + m.iw + ')');
     ok(m.overlap === 0, name + ': tiles do not overlap');
     ok(m.small.length === 0, name + ': every control is at least 44 pt (' + JSON.stringify(m.small) + ')');
