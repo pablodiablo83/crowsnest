@@ -88,7 +88,7 @@ async function loadTides() {
     const label = place && place.port === port && place.name !== d.port ? `${esc(place.name)} <small>(${esc(d.port)})</small>` : esc(d.port);
     setPic('tidePic', CNPics.tide(d), true);
     setText('tidesBig', d.now ? `${d.now.h.toFixed(1)} m ${d.now.rising ? '&uarr;' : '&darr;'}` : '&mdash;');
-    setText('tidesSub', `${label}${d.model ? ' <small>&middot; world model, approximate</small>' : ''}<br>` + next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM.toFixed(1)}m`).join('<br>'));
+    setText('tidesSub', `${label}${d.model ? ' <small>&middot; model, approx.</small>' : ''}<br>` + next.map(e => `${e.type === 'high' ? 'High' : 'Low'} ${fmt(e.time)} &middot; ${e.heightM.toFixed(1)}m`).join('<br>'));
   } catch (e) {
     setText('tidesSub', 'Tide data unavailable');
   }
@@ -102,9 +102,9 @@ async function loadIce() {
   try {
     let fix = null; try { fix = JSON.parse(localStorage.getItem('cn_fix') || 'null'); } catch (e) {}
     const d = await getJson('/api/ice' + (fix && isFinite(fix.lat) && isFinite(fix.lon) ? `?lat=${(+fix.lat).toFixed(3)}&lon=${(+fix.lon).toFixed(3)}` : ''));
-    if (d.relevant === false) { setPic('icePic', CNPics.ice(null), false); setText('iceBig', 'Not a concern'); setText('iceSub', esc(d.reason || 'No position yet')); return; }
-    if (d.failed) { setPic('icePic', CNPics.ice(null), false); setText('iceBig', '&mdash;'); setText('iceSub', '<span class="dim">Ice data unavailable. Use the DMI or Canadian Ice Service charts.</span>'); return; }
-    setPic('icePic', CNPics.ice(d), !d.stale);
+    if (d.relevant === false) { $('iceCard').classList.add('t-row'); setPic('icePic', CNPics.ice(null), false); setText('iceBig', 'Not a concern'); setText('iceSub', esc(d.reason || 'No position yet')); return; }
+    if (d.failed) { $('iceCard').classList.add('t-row'); setPic('icePic', CNPics.ice(null), false); setText('iceBig', '&mdash;'); setText('iceSub', '<span class="dim">Ice data unavailable. Use the DMI or Canadian Ice Service charts.</span>'); return; }
+    $('iceCard').classList.remove('t-row'); setPic('icePic', CNPics.ice(d), !d.stale);
     const e = d.near50 || d.near15, here = d.here || 0;
     setText('iceBig', here >= 15 ? `In ice ${here}%` : e ? `${e.distNm} nm ${BRG(e.bearing)}` : 'Clear');
     const day = d.date ? new Date(d.date + 'T12:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '';
