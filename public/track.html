@@ -24,25 +24,39 @@ select.h-in option{color:#00154C}
 
 /* map */
 .t-mapcard{padding:0;overflow:hidden;position:relative}
-.tmap{position:relative;height:min(64vh,540px);min-height:340px;overflow:hidden;background:#0A2A66;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;outline-offset:-3px}
+/* the map takes the dashboard's colours (Position tile): sea navy, land slate, amber track; red on black at night; light for paper */
+.tmap{--sea:#0F3A7A;--land:#4C5C77;--coast:#9DB0CF;--grid:rgba(255,255,255,.14);--acc:#F5B041;--tx:#fff;--ok:#8FE3B0;--bg:#00154C;--me:#2F80ED;position:relative;height:min(64vh,540px);min-height:340px;overflow:hidden;background:var(--sea);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;outline-offset:-3px}
 .tmap.drag{cursor:grabbing}
-.tm-grid,.tm-track{position:absolute;inset:0;width:100%;height:100%;display:block}
-.tm-grid{pointer-events:none;z-index:0}
-.tm-tiles{position:absolute;inset:0;pointer-events:none;z-index:1}
-.tm-track{pointer-events:none;z-index:2}
+html.night .tmap{--sea:#160404;--land:#3A0E09;--coast:#FF6A4D;--grid:rgba(255,70,50,.22);--acc:#FF6A4D;--tx:#FF6A4D;--ok:#FF6A4D;--bg:#000;--me:#FF9C80}
+.tm-grid,.tm-track,.tm-land{position:absolute;inset:0;width:100%;height:100%;display:block}
+.tm-land{pointer-events:none;z-index:0}
+.tm-grid{pointer-events:none;z-index:1}
+.tm-tiles{position:absolute;inset:0;pointer-events:none;z-index:2}
+.tm-track{pointer-events:none;z-index:3}
+.tmap.chart .tm-land{animation:tmfade .5s ease-out}
+@keyframes tmfade{from{opacity:0}to{opacity:1}}
+.tm-hint{position:absolute;left:10px;bottom:30px;z-index:4;max-width:70%;background:rgba(0,21,76,.88);border:1px solid var(--line-2);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700}
+.tm-hint[hidden]{display:none}
 .tm-tiles img{position:absolute;display:block;max-width:none;opacity:0;transition:opacity .25s;-webkit-user-drag:none;user-select:none}
 .tm-tiles img.in{opacity:1}
-.tm-grid text{fill:rgba(255,255,255,.55);font-size:11px;font-weight:700}
-.tm-grid line{stroke:rgba(255,255,255,.14);stroke-width:1}
-.tm-track text{font-size:12px;font-weight:900;fill:#fff;paint-order:stroke;stroke:#00154C;stroke-width:3.5px;stroke-linejoin:round}
-.tm-ctrl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:3}
+.tm-grid text{fill:var(--tx);fill-opacity:.55;font-size:11px;font-weight:700}
+.tm-grid line{stroke:var(--grid);stroke-width:1}
+.tm-track text{font-size:12px;font-weight:900;fill:var(--tx);paint-order:stroke;stroke:var(--sea);stroke-width:3.5px;stroke-linejoin:round}
+.tm-boat .pulse{transform-box:fill-box;transform-origin:center;animation:tmpulse 1.1s ease-out 1}
+@keyframes tmpulse{from{transform:scale(.6);opacity:.7}to{transform:scale(2.2);opacity:0}}
+.tm-pop{transform-box:fill-box;transform-origin:center;animation:tmpop .45s cubic-bezier(.2,1.6,.4,1) 1}
+@keyframes tmpop{from{transform:scale(0)}to{transform:scale(1)}}
+.tm-fadein{animation:tmfade .5s ease-out 1}
+@media (prefers-reduced-motion:reduce){.tm-boat .pulse,.tm-pop,.tm-fadein,.tmap.chart .tm-land{animation:none}}
+.tm-ctrl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:4}
 .tm-ctrl button{width:48px;height:48px;border-radius:14px;border:1px solid rgba(255,255,255,.35);background:rgba(0,21,76,.86);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;line-height:1;padding:0}
 .tm-ctrl button:hover{background:rgba(10,118,144,.95)}
 .tm-ctrl button[aria-pressed=true]{background:var(--cyan-d);border-color:var(--cyan-l)}
+.tm-ctrl button[hidden]{display:none}
 .tm-ctrl svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.tm-attr{position:absolute;left:0;bottom:0;z-index:3;background:rgba(255,255,255,.85);color:#222;font-size:11px;padding:2px 6px;border-top-right-radius:8px}
+.tm-attr{position:absolute;left:0;bottom:0;z-index:4;background:rgba(255,255,255,.85);color:#222;font-size:11px;padding:2px 6px;border-top-right-radius:8px}
 .tm-attr a{color:#0645ad}
-.tm-msg{position:absolute;left:10px;top:10px;right:78px;z-index:3;background:rgba(0,21,76,.9);border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;font-size:14px}
+.tm-msg{position:absolute;left:10px;top:10px;right:78px;z-index:4;background:rgba(0,21,76,.9);border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;font-size:14px}
 .tm-msg[hidden]{display:none}
 .t-picked{min-height:44px;padding:10px 14px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
 .t-picked b{color:var(--text)}
@@ -59,8 +73,8 @@ select.h-in option{color:#00154C}
 .t-note{color:var(--muted);font-size:14px;margin-top:12px}
 .t-keys{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--muted)}
 .t-keys span{display:inline-flex;align-items:center;gap:6px}
-.t-keys i{display:inline-block;width:22px;height:0;border-top:3px solid var(--cyan-l)}
-.t-keys i.dash{border-top-style:dashed}
+.t-keys i{display:inline-block;width:26px;height:0;border-top:5px dotted var(--amber)}
+.t-keys i.dash{border-top-style:dotted;opacity:.45}
 .t-keys i.dot{width:10px;height:10px;border-radius:50%;border:0;background:var(--ok)}
 .t-keys i.dot.e{background:var(--amber)}
 
@@ -87,7 +101,8 @@ select.h-in option{color:#00154C}
   #printHead h1{font-size:18pt;margin:0}
   #printHead p{font-size:10pt;margin:2pt 0 0}
   .h-card{background:#fff!important;border:1px solid #444!important;color:#000!important;break-inside:avoid}
-  .tmap{height:380px;min-height:0;background:#dfe9f2}
+  .tmap{--sea:#dfe9f2;--land:#c3ccd9;--coast:#6b7a90;--grid:rgba(0,0,0,.14);--acc:#b45f06;--tx:#000;--ok:#1b7a3a;--bg:#fff;--me:#1d4ed8;height:380px;min-height:0;background:#dfe9f2}
+  .tm-hint{display:none}
   .t-stat{border-color:#444!important}
   .t-stat .k,.t-stat .s,.t-note,.h-card .h-sub{color:#333!important}
   .t-stat .v small{color:#333!important}
@@ -117,14 +132,14 @@ select.h-in option{color:#00154C}
 
     <section class="h-card t-mapcard" aria-label="Map">
       <div id="map" class="tmap" role="group" tabindex="0" aria-roledescription="map"
-           aria-label="Map of the voyage track. Drag to move, pinch or use the zoom buttons to zoom. With the keyboard, use the arrow keys to move and plus and minus to zoom."></div>
+           aria-label="Map of the voyage track. Drag to move, pinch or use the zoom buttons to zoom. With the keyboard, use the arrow keys to move and plus and minus to zoom. The layers button switches between the chart and a detailed street map."></div>
       <div class="t-picked" id="picked" aria-live="polite">Tap a point on the track for its time and position.</div>
     </section>
 
     <section class="h-card" id="statsCard" aria-labelledby="hStats">
       <div class="h-head"><div><h2 id="hStats">Trip summary</h2><p class="h-sub" id="statsSub"></p></div></div>
       <div class="t-stats" id="stats"></div>
-      <div class="t-keys screen" aria-hidden="true"><span><i></i>Track</span><span><i class="dash"></i>Over 3 h between fixes</span><span><i class="dot"></i>Start</span><span><i class="dot e"></i>Latest or end</span></div>
+      <div class="t-keys screen" aria-hidden="true"><span><i></i>Track</span><span><i class="dash"></i>Over 3 h between fixes (straight line)</span><span><i class="dot"></i>Start</span><span><i class="dot e"></i>Latest or end</span></div>
       <p class="t-note" id="statsNote"></p>
     </section>
 
@@ -165,6 +180,7 @@ select.h-in option{color:#00154C}
 <div class="h-toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastUndo">Undo</button></div>
 <div id="printFoot"></div>
 <script src="/brand.js?v=2"></script>
-<script src="/track.js?v=2"></script>
+<script src="/coast.js?v=1"></script>
+<script src="/track.js?v=4"></script>
 </body>
 </html>

@@ -1,7 +1,9 @@
-/* Crow's Nest - voyage map. A small self-contained slippy map (no map library): OpenStreetMap + OpenSeaMap tiles,
-   with the track drawn over them as SVG. Works with no tiles at all (offline): you still get the track on a lat/lon grid. */
+/* Crow's Nest - voyage map. A small self-contained slippy map (no map library). Default "Chart" look = the dashboard's Position picture: sea navy,
+   real coastline (public/coast.js, Natural Earth) in slate, the track as an amber dotted trail with the boat riding its head; it works offline. "Detail"
+   switches to OpenStreetMap + OpenSeaMap tiles (needs a connection). The track draws itself on when a voyage opens (skippable, off for reduced motion). */
 (function () {
   'use strict';
+  try { if (localStorage.getItem('cn_theme') === 'night') document.documentElement.classList.add('night'); } catch (e) {}   // same red-light mode as the dashboard
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var p2 = function (n) { return String(n).padStart(2, '0'); };
   var J = { 'Content-Type': 'application/json' };
@@ -61,10 +63,11 @@
   var NS = 'http://www.w3.org/2000/svg';
 
   function MapView(el) {
-    this.el = el; this.lat = 56.5; this.lon = -5.5; this.z = 6; this.sea = true;
+    this.el = el; this.lat = 56.5; this.lon = -5.5; this.z = 6; this.sea = true; this.mode = 'chart'; this.reveal = 1; this.anim = null; this.route = null; this.headAng = null;
     this.tiles = {}; this.pending = 0; this.loaded = 0; this.failed = 0;
     this.data = null; this.sel = null; this.hits = [];
     this.w = el.clientWidth; this.h = el.clientHeight;
+    this.landSvg = document.createElementNS(NS, 'svg'); this.landSvg.setAttribute('class', 'tm-land'); this.landSvg.setAttribute('aria-hidden', 'true');
     this.gridSvg = document.createElementNS(NS, 'svg'); this.gridSvg.setAttribute('class', 'tm-grid'); this.gridSvg.setAttribute('aria-hidden', 'true');
     this.tileDiv = document.createElement('div'); this.tileDiv.className = 'tm-tiles'; this.tileDiv.setAttribute('aria-hidden', 'true');
     this.trackSvg = document.createElementNS(NS, 'svg'); this.trackSvg.setAttribute('class', 'tm-track'); this.trackSvg.setAttribute('aria-hidden', 'true');
@@ -75,10 +78,12 @@
       '<button type="button" data-m="out" aria-label="Zoom out">−</button>' +
       '<button type="button" data-m="fit" aria-label="Show the whole track"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>' +
       '<button type="button" data-m="here" aria-label="Go to my position"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>' +
+      '<button type="button" data-m="detail" aria-pressed="false" aria-label="Detailed map: streets and sea marks (needs a connection)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></button>' +
       '<button type="button" data-m="sea" aria-pressed="true" aria-label="Sea marks (buoys, lights, harbours)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7 8h10M5 17c2 2 4 2 7 0s5-2 7 0"/></svg></button>';
     this.attr = document.createElement('div'); this.attr.className = 'tm-attr';
-    this.attr.innerHTML = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · <a href="https://www.openseamap.org" target="_blank" rel="noopener">OpenSeaMap</a>';
-    el.appendChild(this.gridSvg); el.appendChild(this.tileDiv); el.appendChild(this.trackSvg); el.appendChild(this.msg); el.appendChild(this.ctrl); el.appendChild(this.attr);
+    this.hint = document.createElement('div'); this.hint.className = 'tm-hint'; this.hint.hidden = true; this.hint.textContent = 'The coastline is approximate at this zoom. Tap Detail for streets and sea marks.';
+    this.setAttr();
+    el.classList.add('chart'); el.appendChild(this.landSvg); el.appendChild(this.gridSvg); el.appendChild(this.tileDiv); el.appendChild(this.trackSvg); el.appendChild(this.msg); el.appendChild(this.hint); el.appendChild(this.ctrl); el.appendChild(this.attr);
     this.bind();
     var self = this;
     if (window.ResizeObserver) new ResizeObserver(function () { self.resize(); }).observe(el);
@@ -86,6 +91,43 @@
     window.addEventListener('beforeprint', function () { self.resize(); });
     window.addEventListener('afterprint', function () { self.resize(); });
   }
+  MapView.prototype.setAttr = function () {
+    this.attr.innerHTML = this.mode === 'detail'
+      ? '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · <a href="https://www.openseamap.org" target="_blank" rel="noopener">OpenSeaMap</a>'
+      : 'Coastline: <a href="https://www.naturalearthdata.com" target="_blank" rel="noopener">Natural Earth</a>';
+  };
+  MapView.prototype.setMode = function (m) {
+    this.mode = m === 'detail' ? 'detail' : 'chart';
+    this.el.classList.toggle('chart', this.mode === 'chart'); this.el.classList.toggle('detail', this.mode === 'detail');
+    var d = this.ctrl.querySelector('[data-m=detail]'), sea = this.ctrl.querySelector('[data-m=sea]');
+    d.setAttribute('aria-pressed', String(this.mode === 'detail')); sea.hidden = this.mode !== 'detail';
+    this.msg.hidden = true; this.setAttr(); this.redraw();
+  };
+  /* the land: the bundled coastline in Web Mercator, scaled to this zoom with a multiply and a subtract; points closer than a pixel are skipped */
+  MapView.prototype.drawLand = function () {
+    var svg = this.landSvg, rings = window.CNCoast && window.CNCoast.rings();
+    svg.setAttribute('viewBox', '0 0 ' + this.w + ' ' + this.h);
+    if (this.mode !== 'chart' || !rings) { svg.innerHTML = ''; return; }
+    var sc = Math.pow(2, this.z), ox = lonToX(this.lon, this.z) - this.w / 2, oy = latToY(this.lat, this.z) - this.h / 2, pad = 40, d = [];
+    var x0 = (ox - pad) / sc, x1 = (ox + this.w + pad) / sc, y0 = (oy - pad) / sc, y1 = (oy + this.h + pad) / sc;
+    for (var i = 0; i < rings.length; i++) {
+      var r = rings[i]; if (r.bb[2] < x0 || r.bb[0] > x1 || r.bb[3] < y0 || r.bb[1] > y1) continue;
+      var X = r.x, Y = r.y, n = X.length, px = 0, py = 0, seg = '', cnt = 0;
+      for (var j = 0; j < n; j++) {
+        var x = X[j] * sc - ox, y = Y[j] * sc - oy;
+        if (cnt && Math.abs(x - px) < 0.8 && Math.abs(y - py) < 0.8 && j < n - 1) continue;
+        seg += (cnt ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); px = x; py = y; cnt++;
+      }
+      if (cnt > 2) d.push(seg + 'Z');
+    }
+    svg.innerHTML = d.length ? '<path d="' + d.join('') + '" fill="var(--land)" fill-rule="evenodd" stroke="var(--coast)" stroke-width="2" stroke-linejoin="round"/>' : '';
+  };
+  // the "coastline is approximate" note shows for 7 s when you zoom in past the data's detail, then gets out of the way
+  MapView.prototype.updateHint = function () {
+    var self = this, want = this.mode === 'chart' && this.z >= 10.5;
+    if (want && !this.hintOn) { this.hintOn = true; this.hint.hidden = false; clearTimeout(this.hintT); this.hintT = setTimeout(function () { self.hint.hidden = true; }, 7000); }
+    else if (!want) { this.hintOn = false; clearTimeout(this.hintT); this.hint.hidden = true; }
+  };
   MapView.prototype.resize = function () {
     var w = this.el.clientWidth, h = this.el.clientHeight;
     if (!w || !h || (w === this.w && h === this.h)) return;
@@ -126,6 +168,10 @@
   /* tiles */
   MapView.prototype.tileUrl = function (src, z, x, y) { return SOURCES[src].url.replace('{z}', z).replace('{x}', x).replace('{y}', y); };
   MapView.prototype.updateTiles = function () {
+    if (this.mode !== 'detail') {   // the chart needs no tiles at all
+      for (var k in this.tiles) { this.tiles[k].img.remove(); }
+      this.tiles = {}; this.pending = 0; return;
+    }
     var self = this, z = this.z, zi = Math.max(MINZ, Math.min(MAXZ, Math.round(z))), s = Math.pow(2, z - zi), ts = TILE * s;
     var ox = lonToX(this.lon, z) - this.w / 2, oy = latToY(this.lat, z) - this.h / 2, n = Math.pow(2, zi);
     var need = {}, x0 = Math.floor(ox / ts), x1 = Math.floor((ox + this.w) / ts), y0 = Math.floor(oy / ts), y1 = Math.floor((oy + this.h) / ts);
@@ -163,9 +209,9 @@
   MapView.prototype.afterTiles = function () {
     if (this.pending > 0) return;
     this.updateTiles();   // drop tiles left over from the previous zoom level
-    var offline = this.failed > 0 && this.loaded === 0;
+    var offline = this.mode === 'detail' && this.failed > 0 && this.loaded === 0;
     this.msg.hidden = !offline;
-    if (offline) this.msg.textContent = 'No map tiles. The track is still drawn on the grid. The chart comes back when the phone is online.';
+    if (offline) this.msg.textContent = 'Detail needs a connection. The track is still drawn. Tap Detail again to go back to the chart, which works offline.';
   };
 
   /* graticule (shows wherever tiles are missing) */
@@ -179,47 +225,112 @@
   };
 
   /* the track */
-  MapView.prototype.setTrack = function (data) { this.data = data; this.sel = null; this.drawTrack(); };
+  MapView.prototype.setTrack = function (data, animate) {
+    this.data = data; this.sel = null;
+    if (this.anim && !animate) { this.drawTrack(); return; }   // a refresh while the line is drawing on: new data, same animation
+    this.stopAnim();
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var used = data ? data.points.filter(function (p) { return p.used; }) : [];
+    this.reveal = animate && !reduce && used.length > 1 ? 0 : 1;
+    this.fx = !!animate && !reduce;   // markers pop in on this first draw only (a pan redraws the same markers without popping again)
+    this.drawTrack(); this.fx = false;
+    if (this.reveal === 0) this.playAnim(data);
+  };
+  /* the draw-on: a mask along the route is drawn from the start, the boat rides its head, a tap skips it */
+  MapView.prototype.stopAnim = function () { if (this.anim) { cancelAnimationFrame(this.anim.raf); clearTimeout(this.anim.to); this.anim = null; } };
+  MapView.prototype.finishAnim = function () { if (!this.anim) return; this.stopAnim(); this.reveal = 1; this.applyReveal(false); };
+  MapView.prototype.playAnim = function (data) {
+    var self = this, nm = (data && data.stats && data.stats.distanceNm) || 30, dur = Math.max(1500, Math.min(3400, 1200 + nm * 6)), a = this.anim = { raf: 0, to: 0, t0: 0 };
+    a.to = setTimeout(function () {   // a short beat so the chart settles before the line is drawn
+      function frame(t) {
+        if (self.anim !== a) return;
+        if (!a.t0) a.t0 = t;
+        var k = Math.min(1, (t - a.t0) / dur); self.reveal = 0.5 - Math.cos(Math.PI * k) / 2;
+        if (k < 1) { self.applyReveal(false); a.raf = requestAnimationFrame(frame); } else { self.anim = null; self.reveal = 1; self.applyReveal(true); }
+      }
+      a.raf = requestAnimationFrame(frame);
+    }, 450);
+  };
+  MapView.prototype.applyReveal = function (natural) {
+    var svg = this.trackSvg, mp = svg.querySelector('#trMaskPath'), hd = svg.querySelector('#trHead'), lb = svg.querySelector('#trHeadLbl');
+    if (!hd || !this.route || this.route.length < 2) return;
+    var done = this.reveal >= 1, x, y, ang = null;
+    if (mp && !done) {
+      mp.style.strokeDashoffset = String(1000 * (1 - this.reveal));   // the style wins over the attribute
+      var L = mp.getTotalLength(), dd = L * this.reveal, p = mp.getPointAtLength(dd), p0 = mp.getPointAtLength(Math.max(0, dd - 12)), p1 = mp.getPointAtLength(Math.min(L, dd + 12));
+      x = p.x; y = p.y; if (Math.hypot(p1.x - p0.x, p1.y - p0.y) > 0.5) ang = Math.atan2(p1.x - p0.x, -(p1.y - p0.y)) * 180 / Math.PI;
+    } else { var e = this.route[this.route.length - 1]; x = e[0]; y = e[1]; ang = this.headAng; }
+    hd.setAttribute('transform', 'translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ')');
+    var ar = hd.querySelector('#trArrow'); if (ar && ang != null) ar.setAttribute('transform', 'rotate(' + Math.round(ang) + ')');
+    if (lb) lb.style.opacity = done ? '' : '0';
+    if (done) {
+      var m = svg.querySelector('g[mask]'); if (m) m.removeAttribute('mask');
+      if (natural) { var pu = hd.querySelector('#trPulse'); if (pu) pu.classList.add('pulse'); if (lb) lb.classList.add('tm-fadein'); }
+    }
+  };
   MapView.prototype.drawTrack = function () {
     var d = this.data, svg = this.trackSvg, self = this;
-    this.hits = []; this.trackSvg.setAttribute('viewBox', '0 0 ' + this.w + ' ' + this.h);
-    if (!d) { svg.innerHTML = ''; return; }
-    var used = d.points.filter(function (p) { return p.used; }), byId = {};
+    this.hits = []; svg.setAttribute('viewBox', '0 0 ' + this.w + ' ' + this.h);
+    if (!d) { svg.innerHTML = ''; this.route = null; return; }
+    var used = d.points.filter(function (p) { return p.used; }), byId = {}, f1 = function (n) { return n.toFixed(1); }, pt = function (q) { return f1(q[0]) + ',' + f1(q[1]); };
     used.forEach(function (p) { byId[p.id] = self.px(p.lat, p.lon); });
-    var solid = '', dashed = '', arrows = '', dots = '', run = [];
-    function flush() { if (run.length > 1) solid += '<polyline points="' + run.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ') + '"/>'; run = []; }
-    d.legs.forEach(function (lg, i) {
+    var solid = '', gaps = '', arrows = '', marks = '', run = [];
+    function flush() { if (run.length > 1) solid += '<polyline points="' + run.map(pt).join(' ') + '"/>'; run = []; }
+    d.legs.forEach(function (lg) {
       var a = byId[lg.from], b = byId[lg.to]; if (!a || !b) return;
-      if (lg.gap) { flush(); dashed += '<line x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) + '" x2="' + b[0].toFixed(1) + '" y2="' + b[1].toFixed(1) + '"/>'; }
+      if (lg.gap) { flush(); gaps += '<line x1="' + f1(a[0]) + '" y1="' + f1(a[1]) + '" x2="' + f1(b[0]) + '" y2="' + f1(b[1]) + '"/>'; }
       else { if (!run.length) run.push(a); run.push(b); }
-      var len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      if (len > 46) {
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 46) {
         var ang = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI + 90;
-        arrows += '<path d="M-5,4 L0,-6 L5,4 L0,1.5 Z" transform="translate(' + ((a[0] + b[0]) / 2).toFixed(1) + ' ' + ((a[1] + b[1]) / 2).toFixed(1) + ') rotate(' + ang.toFixed(0) + ')"/>';
+        arrows += '<path d="M-5,4 L0,-6 L5,4 L0,1.5 Z" transform="translate(' + f1((a[0] + b[0]) / 2) + ' ' + f1((a[1] + b[1]) / 2) + ') rotate(' + ang.toFixed(0) + ')"/>';
       }
     });
     flush();
+    // every fix can be tapped; only one marker per 14 px is drawn, so a long track stays calm
+    var lastM = null;
     used.forEach(function (p, i) {
       var q = byId[p.id]; if (q[0] < -20 || q[1] < -20 || q[0] > self.w + 20 || q[1] > self.h + 20) return;
       self.hits.push({ p: p, x: q[0], y: q[1] });
-      var first = i === 0, last = i === used.length - 1 && used.length > 1;
-      if (!first && !last) dots += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.4"/>';
+      if (i === 0 || (i === used.length - 1 && used.length > 1)) return;
+      if (lastM && Math.hypot(q[0] - lastM[0], q[1] - lastM[1]) < 14) return;
+      lastM = q; marks += '<circle cx="' + f1(q[0]) + '" cy="' + f1(q[1]) + '" r="4.2"/>';
     });
-    var ends = '', f = used[0], l = used[used.length - 1];
-    if (f) { var a0 = this.dragAt || byId[f.id]; if (this.editStart) ends += '<circle cx="' + a0[0].toFixed(1) + '" cy="' + a0[1].toFixed(1) + '" r="18" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="4 3"/>'; this.startPx = a0; ends += '<circle cx="' + a0[0].toFixed(1) + '" cy="' + a0[1].toFixed(1) + '" r="8" fill="#8FE3B0" stroke="#00154C" stroke-width="3"/><text x="' + (a0[0] + 12).toFixed(1) + '" y="' + (a0[1] + 4).toFixed(1) + '">Start</text>'; }
-    if (l && l !== f) { var a1 = byId[l.id]; ends += '<circle cx="' + a1[0].toFixed(1) + '" cy="' + a1[1].toFixed(1) + '" r="9" fill="#F5B041" stroke="#00154C" stroke-width="3"/><text x="' + (a1[0] + 13).toFixed(1) + '" y="' + (a1[1] + 4).toFixed(1) + '">' + (d.voyage.end ? 'End' : 'Latest') + '</text>'; }
+    var f = used[0], l = used[used.length - 1], open = !d.voyage.end, route = used.map(function (p) { return byId[p.id]; });
+    this.route = route; this.headAng = null;
+    if (route.length > 1) {   // the boat points the way it is going: the fix's course when it is moving, else the last leg
+      var q1 = route[route.length - 2], q2 = route[route.length - 1];
+      this.headAng = l.cog != null && (l.sog == null || l.sog >= 0.5) ? l.cog : Math.atan2(q2[0] - q1[0], -(q2[1] - q1[1])) * 180 / Math.PI;
+    }
+    var revealing = this.reveal < 1 && route.length > 1;
+    var defs = revealing ? '<defs><mask id="trMask" maskUnits="userSpaceOnUse" x="0" y="0" width="' + this.w + '" height="' + this.h + '"><polyline id="trMaskPath" points="' + route.map(pt).join(' ') + '" fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" pathLength="1000" stroke-dasharray="1000" stroke-dashoffset="' + (1000 * (1 - this.reveal)).toFixed(1) + '"/></mask></defs>' : '';
+    var ends = '', pop = this.fx ? ' class="tm-pop"' : '';
+    if (f) {
+      var a0 = this.dragAt || byId[f.id];
+      if (this.editStart) ends += '<circle cx="' + f1(a0[0]) + '" cy="' + f1(a0[1]) + '" r="18" fill="none" stroke="var(--tx)" stroke-width="2" stroke-dasharray="4 3"/>';
+      this.startPx = a0;
+      ends += '<circle' + pop + ' cx="' + f1(a0[0]) + '" cy="' + f1(a0[1]) + '" r="8" fill="var(--ok)" stroke="var(--sea)" stroke-width="3"/><text x="' + f1(a0[0] + 12) + '" y="' + f1(a0[1] + 4) + '">Start</text>';
+    }
+    if (l && l !== f) {   // the boat on an open voyage (same marker as the dashboard's Position picture), a plain disc once it has ended
+      var shape = open
+        ? '<g transform="scale(.85)"><circle r="30" fill="var(--acc)" opacity=".22"/><circle id="trPulse" r="17" fill="none" stroke="var(--acc)" stroke-width="3" opacity="0"/><circle r="17" fill="none" stroke="var(--acc)" stroke-width="3"/><g id="trArrow" transform="rotate(' + Math.round(this.headAng || 0) + ')"><path d="M0 -13 L9 11 L0 6 L-9 11Z" fill="var(--acc)" stroke="#0009" stroke-width="2"/></g></g>'
+        : '<circle r="10" fill="var(--acc)" stroke="var(--sea)" stroke-width="3"/>';
+      var a1 = byId[l.id];
+      ends += '<g id="trHead" class="tm-boat" transform="translate(' + f1(a1[0]) + ' ' + f1(a1[1]) + ')">' + shape + '<text id="trHeadLbl" x="' + (open ? 24 : 15) + '" y="4"' + (revealing ? ' style="opacity:0"' : '') + '>' + (open ? 'Latest' : 'End') + '</text></g>';
+    }
     var selSvg = '';
-    if (this.sel && byId[this.sel]) { var s = byId[this.sel]; selSvg = '<circle cx="' + s[0].toFixed(1) + '" cy="' + s[1].toFixed(1) + '" r="13" fill="none" stroke="#fff" stroke-width="3"/><circle cx="' + s[0].toFixed(1) + '" cy="' + s[1].toFixed(1) + '" r="13" fill="none" stroke="#00154C" stroke-width="1" stroke-dasharray="4 4"/>'; }
+    if (this.sel && byId[this.sel]) { var s = byId[this.sel]; selSvg = '<circle cx="' + f1(s[0]) + '" cy="' + f1(s[1]) + '" r="13" fill="none" stroke="var(--tx)" stroke-width="3"/><circle cx="' + f1(s[0]) + '" cy="' + f1(s[1]) + '" r="13" fill="none" stroke="var(--sea)" stroke-width="1" stroke-dasharray="4 4"/>'; }
     var me = '';
-    if (this.me) { var m = this.px(this.me.lat, this.me.lon); me = '<circle cx="' + m[0].toFixed(1) + '" cy="' + m[1].toFixed(1) + '" r="9" fill="#2F80ED" stroke="#fff" stroke-width="3"/>'; }
-    svg.innerHTML =
-      '<g fill="none" stroke="#00154C" stroke-opacity=".75" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">' + solid + dashed.replace(/<line /g, '<line stroke-dasharray="1 11" ') + '</g>' +
-      '<g fill="none" stroke="#7FD3E6" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">' + solid + '</g>' +
-      '<g fill="none" stroke="#7FD3E6" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="1 11">' + dashed + '</g>' +
-      '<g fill="#00154C" fill-opacity=".9" stroke="#fff" stroke-width="1.2">' + arrows + '</g>' +
-      '<g fill="#7FD3E6" stroke="#00154C" stroke-width="1.6">' + dots + '</g>' + selSvg + ends + me;
+    if (this.me) { var m = this.px(this.me.lat, this.me.lon); me = '<circle cx="' + f1(m[0]) + '" cy="' + f1(m[1]) + '" r="9" fill="var(--me)" stroke="var(--tx)" stroke-width="3"/>'; }
+    svg.innerHTML = defs +
+      '<g' + (revealing ? ' mask="url(#trMask)"' : '') + '>' +
+      '<g fill="none" stroke="var(--sea)" stroke-opacity=".8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 11">' + solid + '</g>' +   // a dark halo keeps the dots readable on light Detail tiles
+      '<g fill="none" stroke="var(--acc)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 11">' + solid + '</g>' +
+      '<g fill="none" stroke="var(--acc)" stroke-opacity=".5" stroke-width="5" stroke-linecap="round" stroke-dasharray="1 17">' + gaps + '</g>' +
+      '<g fill="var(--tx)" stroke="var(--sea)" stroke-width="1.2">' + arrows + '</g>' +
+      '<g fill="var(--sea)" stroke="var(--acc)" stroke-width="2">' + marks + '</g></g>' + selSvg + ends + me;
+    this.applyReveal(false);
   };
-  MapView.prototype.redraw = function () { this.updateTiles(); this.drawGrid(); this.drawTrack(); };
+  MapView.prototype.redraw = function () { this.updateTiles(); this.drawGrid(); this.drawLand(); this.drawTrack(); this.updateHint(); };
   MapView.prototype.pick = function (x, y) {
     var best = null, bd = 22;
     this.hits.forEach(function (h) { var dd = Math.hypot(h.x - x, h.y - y); if (dd < bd) { bd = dd; best = h; } });
@@ -234,6 +345,7 @@
     function rel(e) { var r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
     el.addEventListener('pointerdown', function (e) {
       if (e.target.closest('.tm-ctrl,.tm-attr,.tm-msg')) return;
+      self.finishAnim();   // touching the map skips the draw-on
       if (self.editStart && self.startPx && !Object.keys(ptrs).length) {
         var q0 = rel(e);
         if (Math.hypot(q0[0] - self.startPx[0], q0[1] - self.startPx[1]) < 32) { el.setPointerCapture(e.pointerId); self.mk = e.pointerId; self.dragAt = q0; self.drawTrack(); e.preventDefault(); return; }
@@ -288,10 +400,13 @@
     if (m === 'in') map.zoomAt(1, map.w / 2, map.h / 2);
     else if (m === 'out') map.zoomAt(-1, map.w / 2, map.h / 2);
     else if (m === 'fit') { if (S.data && S.data.stats.bbox) map.fit(S.data.stats.bbox); }
+    else if (m === 'detail') { var dm = map.mode === 'detail' ? 'chart' : 'detail'; map.setMode(dm); try { localStorage.setItem('cn_mapmode', dm); } catch (x) {} }
     else if (m === 'sea') { var on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', String(on)); map.setSea(on); try { localStorage.setItem('cn_sea', on ? '1' : '0'); } catch (x) {} }
     else if (m === 'here') locate(true);
   });
   try { if (localStorage.getItem('cn_sea') === '0') { map.sea = false; map.ctrl.querySelector('[data-m=sea]').setAttribute('aria-pressed', 'false'); } } catch (x) {}
+  try { map.setMode(localStorage.getItem('cn_mapmode') === 'detail' ? 'detail' : 'chart'); } catch (x) { map.setMode('chart'); }
+  if (window.CNCoast) window.CNCoast.load().then(function (r) { if (r) map.redraw(); });
   map.onpick = function (p) {
     var el = $('#picked');
     if (!p) { el.textContent = 'Tap a point on the track for its time and position.'; return; }
@@ -371,7 +486,7 @@
     S.data = d;
     $('#gpxLink').href = '/api/voyages/' + encodeURIComponent(S.id) + '/track.gpx';
     $('#csvLink').href = '/api/voyages/' + encodeURIComponent(S.id) + '/track.csv';
-    renderStats(); renderFixes(); map.setTrack(d);
+    renderStats(); renderFixes(); map.setTrack(d, fit);   // opening a voyage draws the track on; the minute-by-minute refresh does not
     if (fit) {
       if (d.stats.bbox) map.fit(d.stats.bbox);
       else { var k = lastKnown(); map.setView(k ? k.lat : 56.5, k ? k.lon : -5.5, k ? 10 : 6); }
@@ -478,6 +593,7 @@
   document.addEventListener('visibilitychange', function () { if (!document.hidden && S.id) loadVoyage(false); });
 
   window.addEventListener('online', function () { map.retryTiles(); });
+  window.addEventListener('beforeprint', function () { map.finishAnim(); });   // paper gets the whole track
   map.redraw();
   init();
   window.__cnMap = map;   // for testing
