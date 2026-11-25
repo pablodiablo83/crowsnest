@@ -1,0 +1,36 @@
+# One-off probe (25 Nov 2026): the dev sandbox cannot reach NOAA ERDDAP, DMI or the IOC; GitHub's runners can. Prints what the real services answer so
+# the ice and world-tide engines are built on real formats. Run by hand: Actions > Data probe > Run workflow. Read-only, no secrets.
+name: Data probe
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: NSIDC near-real-time sea ice concentration on NOAA ERDDAP (info, latest time, a Greenland subset)
+        run: |
+          for host in coastwatch.pfeg.noaa.gov polarwatch.noaa.gov; do
+            echo "=== $host info (variables and axes)"
+            curl -s -m 40 "https://$host/erddap/info/nsidcG10016v3nh1day/index.csv" | grep -E "dimension|variable|time_coverage|geospatial_[xy]|Northernmost|sourceUrl|projection|spatial_ref|grid_mapping|^NC_GLOBAL,(title|time_coverage_end|history)" | cut -c1-220 | head -40
+          done
+          echo "=== latest time"
+          curl -s -m 40 "https://coastwatch.pfeg.noaa.gov/erddap/griddap/nsidcG10016v3nh1day.csv?time%5B(last)%5D" | head -5
+      - name: A small subset around Cape Farewell (projected x,y metres), as JSON
+        run: |
+          # polar stereographic north (NSIDC, 70N, -45): Cape Farewell 59.8N 43.9W is roughly x=+250 km, y=-2330 km
+          curl -s -m 60 "https://coastwatch.pfeg.noaa.gov/erddap/griddap/nsidcG10016v3nh1day.json?cdr_seaice_conc%5B(last)%5D%5B(-2200000):(-2400000)%5D%5B(150000):(350000)%5D" | head -c 1800; echo
+          echo "=== try the other likely variable names"
+          curl -s -m 60 "https://coastwatch.pfeg.noaa.gov/erddap/griddap/nsidcG10016v3nh1day.csv?nsidc_nt_seaice_conc%5B(last)%5D%5B(-2300000):(-2300000)%5D%5B(250000):(250000)%5D" | head -c 600
+      - name: Open-Meteo marine sea level at Nuuk and at Scilly (live), 3 days
+        run: |
+          curl -s -m 40 "https://marine-api.open-meteo.com/v1/marine?latitude=64.17&longitude=-51.74&hourly=sea_level_height_msl&forecast_days=3&timezone=UTC" | head -c 900; echo
+      - name: DMI ice chart index pages (is there anything machine readable?)
+        run: |
+          curl -s -m 40 -I "https://ocean.dmi.dk/arctic/icecharts.uk.php" | head -5
+          curl -s -m 40 "https://ocean.dmi.dk/arctic/icecharts_gl_southwest.uk.php" | grep -oE 'href="[^"]*\.(pdf|png|jpg|tif|geojson|json|kml|shp)[^"]*"' | head -12
+          curl -s -m 40 "https://ocean.dmi.dk/arctic/icecharts.uk.php" | grep -oE 'href="[^"]*(wms|wfs|geojson|api|json|kml)[^"]*"' | head -8
+      - name: IOC sea level monitoring station list (world gauges)
+        run: |
+          curl -s -m 40 "https://www.ioc-sealevelmonitoring.org/service.php?query=stationlist&format=json" | head -c 700; echo
