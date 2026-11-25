@@ -25,7 +25,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   ok(!staleP.length, 'no skill or exemption names a page that does not exist' + (staleP.length ? ': ' + staleP.join(', ') : ''));
   // routes
   const routes = new Set();
-  for (const f of ['server.js', 'extra.js', 'tides.js', 'atlantic-wx.js', 'ice.js', 'assistant.js']) {
+  for (const f of ['server.js', 'extra.js', 'tides.js', 'atlantic-wx.js', 'ice.js', 'blackbox.js', 'assistant.js']) {
     const src = fs.readFileSync(path.join(ROOT, f), 'utf8'); let m; const re = /app\.(get|post|put|delete)\(\s*'([^']+)'/g;
     while ((m = re.exec(src))) if (m[2].startsWith('/api/')) routes.add(m[1].toUpperCase() + ' ' + m[2]);
   }

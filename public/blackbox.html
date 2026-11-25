@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#00154C">
+<title>Black box recorder - Crow's Nest</title>
+<link rel="icon" type="image/png" href="/assets/icon.png?v=2">
+<link rel="apple-touch-icon" href="/assets/icon.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/hor.css?v=3">
+<style>
+/* Black box recorder page (25 Nov 2026): what this device is recording, what the server holds, plain-text downloads. */
+.b-wrap{max-width:760px;margin:0 auto;padding:14px 16px calc(60px + env(safe-area-inset-bottom))}
+.b-sub{color:var(--muted);font-size:14px;margin-top:2px}
+.b-card{margin-top:14px}
+.b-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.b-row:last-child{border-bottom:0}
+.b-state{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:900}
+.b-dot{width:14px;height:14px;border-radius:50%;background:#8A96A8;flex:none}
+.b-dot.rec{background:#FF5A52;box-shadow:0 0 0 4px rgba(255,90,82,.25)}
+.b-meta{color:var(--muted);font-size:14px}
+.b-btn{min-height:44px;padding:0 16px}
+.b-note{display:flex;gap:8px;margin-top:10px}
+.b-note input{flex:1;min-width:0;min-height:44px;border-radius:12px;border:1px solid var(--line);background:#061033;color:var(--tx,#fff);padding:0 12px;font:inherit}
+.b-day b{font-variant-numeric:tabular-nums}
+.b-links{display:flex;gap:8px}
+.b-msg{color:var(--muted);padding:14px 2px;font-size:14px}
+</style>
+<script src="/net.js?v=1"></script>
+<script src="/blackbox.js?v=1"></script>
+</head>
+<body>
+<div class="b-wrap">
+  <header class="h-top">
+    <a class="h-back" href="/" aria-label="Back to dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Dashboard</a>
+    <div class="h-title">
+      <h1>Black box recorder</h1>
+      <p class="b-sub">Records position, speed, course, connection, battery and errors, and backs them up to the server automatically.</p>
+    </div>
+  </header>
+
+  <section class="h-card b-card" aria-label="This device">
+    <div class="b-row"><div class="b-state" role="status" aria-live="polite"><span class="b-dot" id="bDot"></span><span id="bState">Checking…</span></div><button type="button" class="h-btn ghost b-btn" id="bToggle">Pause</button></div>
+    <div class="b-row"><span class="b-meta" id="bQueue">&hellip;</span><button type="button" class="h-btn primary b-btn" id="bSend">Send now</button></div>
+    <form class="b-note" id="bNoteForm"><input id="bNote" maxlength="500" placeholder="Add a note (e.g. “engine alarm, 14:20”)" aria-label="Note for the black box"><button type="submit" class="h-btn ghost b-btn">Add note</button></form>
+  </section>
+
+  <section class="h-card b-card" aria-label="On the server">
+    <div class="b-row"><b>Backed up on the server</b><span class="b-meta" id="bTotal">&hellip;</span></div>
+    <div id="bDevs"></div>
+    <div id="bDays"><p class="b-msg">Loading…</p></div>
+  </section>
+  <p class="b-msg">Plain text: JSON Lines (one record per line, opens in any editor) or CSV (opens in a spreadsheet). The server keeps one file per day for 400 days. Only the master account can download.</p>
+</div>
+<script src="/blackbox-page.js?v=1"></script>
+</body>
+</html>

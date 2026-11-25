@@ -11,9 +11,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/dashboard.css?v=9">
-<link rel="stylesheet" href="/dash.css?v=4">
+<link rel="stylesheet" href="/dash.css?v=5">
 <link rel="stylesheet" href="/wave.css?v=2">
 <script src="/net.js?v=1"></script>
+<script src="/blackbox.js?v=1"></script>
 </head>
 <body class="dash">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -37,6 +38,7 @@
  <symbol id="i-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
  <symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/></symbol>
  <symbol id="i-ice" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M3.5 7l17 10M20.5 7l-17 10M9 4l3 2 3-2M9 20l3-2 3 2"/></symbol>
+ <symbol id="i-rec" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></symbol>
  <symbol id="i-anchor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M12 7v14M7 11h10M4 15a8 8 0 0 0 16 0"/></symbol>
 </defs></svg>
 <div class="dapp">
@@ -44,6 +46,7 @@
     <span class="dlogo"><svg width="22" height="22" aria-hidden="true"><use href="#i-anchor"/></svg></span>
     <span class="dbrand">Crow's Nest</span>
     <span class="dclock" id="dClock" aria-label="Time"></span>
+    <a class="dpill dbb" id="bbBtn" href="/blackbox.html" aria-label="Black box recorder"><svg width="20" height="20" aria-hidden="true"><use href="#i-rec"/></svg><span>Black box recorder</span></a>
     <button type="button" class="dpill" id="themeBtn" aria-pressed="false" aria-label="Night mode"><svg width="20" height="20" aria-hidden="true"><use href="#i-rest" id="themeIcon"/></svg><span id="themeTxt">Night</span></button>
   </header>
 
@@ -189,6 +192,7 @@
     <a href="/log.html"><svg width="26" height="26" aria-hidden="true"><use href="#i-log"/></svg>Log</a>
     <a href="/passage.html"><svg width="26" height="26" aria-hidden="true"><use href="#i-doc"/></svg>Passage pack</a>
     <a href="/status.html"><svg width="26" height="26" aria-hidden="true"><use href="#i-pulse"/></svg>Status</a>
+    <a href="/blackbox.html"><svg width="26" height="26" aria-hidden="true"><use href="#i-rec"/></svg>Black box recorder</a>
   </div>
 </div>
 

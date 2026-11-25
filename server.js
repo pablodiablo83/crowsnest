@@ -1365,6 +1365,9 @@ app.get('/api/inshore', async (req, res) => {
 // ---- tides (tides.js: standard ports from open gauge data + the tide engine; secondary ports by the Admiralty method)
 const tidesMod = require('./tides.js')(app, { db, auditRaw, getSetting, setSetting });
 
+// ---- Black box recorder (blackbox.js): phones upload their state and errors; plain daily files to download later
+require('./blackbox.js')(app, { DATA_DIR, curDevice, BRAND, csvCell });
+
 // ---- Sea ice near the vessel (ice.js): concentration from NSIDC via NOAA ERDDAP; aid only
 require('./ice.js')(app, { lastPosition: tidesMod.lastPosition });
 

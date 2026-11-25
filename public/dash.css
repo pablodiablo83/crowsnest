@@ -133,3 +133,7 @@ body.dash .htoast{bottom:calc(var(--dockh) + 14px + env(safe-area-inset-bottom,0
 .t-nmea{border-style:dashed;background:transparent;cursor:pointer;text-align:left;font:inherit}.t-nmea .pic{opacity:.8}
 .t-ice .cap b{white-space:normal}
 .nmea-p{margin:6px 2px 10px;font-size:15px;line-height:1.45;color:var(--mu)}.nmea-p b{color:var(--tx)}.nmea-btn{width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);background:none;color:var(--mu);font:900 16px Lato,system-ui,sans-serif}
+
+/* Black box recorder button (25 Nov 2026): a link pill in the header; icon only on a phone (the More sheet carries the full name) */
+.dbb{text-decoration:none;margin-left:auto}.dbb svg{color:#FF5A52}.dclock+.dbb{margin-left:12px}
+@media (max-width:599px){.dbb{width:44px;padding:0;justify-content:center;margin-left:auto;margin-right:8px}.dbb span{display:none}}

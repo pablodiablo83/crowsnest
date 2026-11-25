@@ -42,6 +42,7 @@ if [ "${1:-}" != "--no-browser" ]; then
   fresh NO_TIDE_WARMUP=1 && run pw-trackmap node tests/pw-trackmap.js "$TMP"
   fresh NO_TIDE_WARMUP=1 && run pw-dashboard node tests/pw-dashboard.js "$TMP"
   fresh NO_TIDE_WARMUP=1 && run pw-assistant node tests/pw-assistant.js "$TMP"
+  fresh NO_TIDE_WARMUP=1 && run pw-blackbox node tests/pw-blackbox.js "$TMP"
   fresh NO_TIDE_WARMUP=1 && run pw-status node tests/pw-status.js "$TMP"
   fresh NO_TIDE_WARMUP=1 && run sec-checks node tests/sec-checks.js "$TMP"
 fi

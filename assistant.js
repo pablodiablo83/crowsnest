@@ -272,6 +272,14 @@ skill({ id: 'ice', title: 'Sea ice', help: 'How close the sea ice is (Greenland 
     const near = e ? `Nearest ice (${e.conc} %) about ${e.distNm} nm, bearing ${String(e.bearing).padStart(3, '0')}°T.` : 'No ice of 15 % or more within about 160 nm.';
     return { ok: true, reply: `${here}${near} Data from ${d.date || 'the latest day'}. Icebergs, bergy bits and growlers are NOT shown; not for navigation.${d.stale ? ' (old copy: the service is not answering)' : ''}`, actions: [{ kind: 'open', label: 'Open dashboard', url: '/' }] }; } });
 
+skill({ id: 'blackbox', title: 'Black box recorder', help: 'The black box recorder: what the server holds and how to download it.',
+  examples: ['black box', 'open the black box recorder'],
+  pages: ['/blackbox.html'], apis: ['POST /api/blackbox', 'GET /api/blackbox/status', 'GET /api/blackbox/download'],
+  match: c => (/\b(black ?box|flight recorder)\b/.test(c.t) ? {} : null),
+  run: async c => { const r = await c.api('GET', '/api/blackbox/status'); if (!r.ok) return c.fail(r);
+    const d = r.data, l = d.last, when = l ? hm(l.t, c.tz) : null;
+    return { ok: true, reply: d.totalRecords ? `The black box holds ${d.totalRecords} records over ${d.days.length} day${d.days.length === 1 ? '' : 's'}; the last one was at ${when} (${l.k}). Download it as JSON or CSV on the Black box page.` : 'The black box has nothing on the server yet. Phones upload automatically within a minute of the first position or event.', actions: [{ kind: 'open', label: 'Open Black box recorder', url: '/blackbox.html' }] }; } });
+
 skill({ id: 'inshore', title: 'Inshore waters forecast', help: 'The Met Office inshore forecast for the nearest area.',
   examples: ['inshore forecast', 'what is the inshore waters forecast'],
   pages: ['/passage.html'], apis: ['GET /api/inshore'],
@@ -320,7 +328,7 @@ skill({ id: 'undo', title: 'Undo', help: 'Reverses the last thing I did.',
   run: async () => ({ ok: true, undo: true, reply: '' }) });   // handled by the engine (replays the last undo)
 
 // priority: exact/specific first. (Registration order above is by topic; matching order is here.)
-const ORDER = ['help', 'undo', 'open', 'pattern', 'add-entry', 'edit-last', 'log', 'tap', 'rest-status', 'entries', 'who', 'voyage', 'position', 'atlantic', 'wind', 'ice', 'weather', 'tides', 'inshore', 'status'];
+const ORDER = ['help', 'undo', 'blackbox', 'open', 'pattern', 'add-entry', 'edit-last', 'log', 'tap', 'rest-status', 'entries', 'who', 'voyage', 'position', 'atlantic', 'wind', 'ice', 'weather', 'tides', 'inshore', 'status'];
 SKILLS.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
 
 // pages and routes the assistant deliberately does not cover, each with the reason (the coverage gate reads these)
