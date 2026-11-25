@@ -11,10 +11,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/dashboard.css?v=9">
-<link rel="stylesheet" href="/dash.css?v=6">
+<link rel="stylesheet" href="/dash.css?v=10">
 <link rel="stylesheet" href="/wave.css?v=2">
+<link rel="stylesheet" href="/motion.css?v=1">
 <script src="/net.js?v=1"></script>
-<script src="/blackbox.js?v=2"></script>
+<script src="/motion.js?v=2" defer></script>
+<script src="/blackbox.js?v=3"></script>
 </head>
 <body class="dash">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -43,14 +45,12 @@
 </defs></svg>
 <div class="dapp">
   <header class="dtop">
-    <span class="dlogo"><svg width="22" height="22" aria-hidden="true"><use href="#i-anchor"/></svg></span>
+    <a class="dlogo" href="/" aria-label="Crow's Nest home"><img src="/assets/icon.svg?v=2" width="44" height="44" alt=""></a>
     <span class="dbrand">Crow's Nest</span>
     <span class="dclock" id="dClock" aria-label="Time"></span>
     <a class="dpill dbb" id="bbBtn" href="/blackbox.html" aria-label="Black box recorder"><svg width="20" height="20" aria-hidden="true"><use href="#i-rec"/></svg><span>Black box recorder</span></a>
     <button type="button" class="dpill" id="themeBtn" aria-pressed="false" aria-label="Night mode"><svg width="20" height="20" aria-hidden="true"><use href="#i-rest" id="themeIcon"/></svg><span id="themeTxt">Night</span></button>
   </header>
-
-  <button type="button" class="dbuild" id="dBuild" aria-label="Build number" disabled>build &hellip;</button>
 
   <main class="dmain" id="dmain">
   <section class="hero rail" id="hero" aria-label="Hours of rest">
@@ -156,6 +156,7 @@
       <div class="pic" id="nmeaPic"></div>
       <div class="cap"><b>Connect NMEA</b><span>Signal K · NMEA 0183/2000 · not set up</span></div>
     </button>
+    <button type="button" class="dbuild" id="dBuild" aria-label="Build number" disabled>build &hellip;</button>
 
   </div>
 
@@ -240,8 +241,8 @@
   </div>
 </div>
 <div class="htoast" id="heroToast" style="display:none;" role="status"><span id="toastText"></span><button type="button" id="toastUndo">UNDO</button></div>
-<script src="/dashpics.js?v=5"></script>
-<script src="/dashboard.js?v=18"></script>
+<script src="/dashpics.js?v=6"></script>
+<script src="/dashboard.js?v=19"></script>
 <script src="/outbox.js?v=1"></script>
 <script src="/hero.js?v=11"></script>
 <script src="/dashui.js?v=4"></script>

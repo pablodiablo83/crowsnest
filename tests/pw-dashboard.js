@@ -32,7 +32,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
       return { bld, tiles, overlap, hero, dock, btn, small, sw: document.documentElement.scrollWidth, iw: innerWidth, rail: getComputedStyle(document.getElementById('dmain')).display };
     });
     ok(m.tiles.length === 11 && m.tiles.every(t => t.vis), name + ': 11 tiles shown (' + m.tiles.length + ')');
-    ok(/^build ([0-9a-f]{7,}|\?)$/.test(m.bld.txt) && m.bld.r <= m.iw && m.bld.l > m.iw / 2 - 40 && (m.bld.b <= m.dock.t + 1 || m.bld.r <= m.micL + 1), name + ': build label bottom right (' + m.bld.txt + ')');
+    ok(/^build ([0-9a-f]{7,}|\?)$/.test(m.bld.txt) && m.bld.r <= m.iw && m.bld.l > m.iw / 2 - 40, name + ': build label bottom right (' + m.bld.txt + ')');
     ok(m.sw <= m.iw + 1, name + ': no sideways scroll (' + m.sw + ' ≤ ' + m.iw + ')');
     ok(m.overlap === 0, name + ': tiles do not overlap');
     ok(m.small.length === 0, name + ': every control is at least 44 pt (' + JSON.stringify(m.small) + ')');
@@ -67,6 +67,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   {
     const { ctx, page } = await mk(1180, 820);
     await page.click('#themeBtn'); ok(await page.evaluate(() => document.documentElement.classList.contains('night') && localStorage.getItem('cn_theme') === 'night'), 'night mode on and remembered');
+    await page.waitForTimeout(450);   // the Night cross-fade (260 ms) must have finished
     const bg = await page.evaluate(() => [getComputedStyle(document.body).backgroundColor, getComputedStyle(document.getElementById('btnRest')).backgroundColor]);
     ok(bg[0] === 'rgb(0, 0, 0)' && /255, 106, 77/.test(bg[1]), 'night: black background, red toggle (' + bg.join(' / ') + ')');
     await page.reload(); await page.waitForSelector('#heroMain', { state: 'visible' }); ok(await page.evaluate(() => document.documentElement.classList.contains('night')), 'night mode survives a reload');

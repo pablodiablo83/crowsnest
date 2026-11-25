@@ -428,7 +428,7 @@ setInterval(() => { loadHorSummary(); loadLogTile(); loadTrackTile(); }, 120000)
       el.textContent = 'build ' + d.commit;
     } catch (e) { /* offline: keep what is shown */ }
   }
-  const place = () => { const dk = document.querySelector('.ddock'); if (dk) { const t = dk.getBoundingClientRect().top; if (t > 0) el.style.bottom = Math.round(innerHeight - t + 6) + 'px'; } };
+  const place = () => { if (innerWidth < 1000) { el.style.bottom = ''; return; } const dk = document.querySelector('.ddock'); if (dk) { const t = dk.getBoundingClientRect().top; if (t > 0) el.style.bottom = Math.round(innerHeight - t + 6) + 'px'; } };
   check(); setInterval(check, 5 * 60000); place(); addEventListener('resize', place); addEventListener('load', place);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { check(); place(); } });
 })();

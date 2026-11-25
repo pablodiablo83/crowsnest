@@ -84,7 +84,7 @@
   function render() {
     const el = $('ahead'); if (!el || !A.wx) return;
     const ageH = (nowMs() - Date.parse(A.wx.fetched.replace(/Z$/, ':00Z'))) / 3600e3;
-    const head = `<div class="ah-top"><a class="ah-back" href="/">‹ Dashboard</a><span class="ah-age${ageH > 24 ? ' old' : ''}">Forecast ${ageH < 1 ? '<1' : Math.round(ageH)} h old</span><button class="ah-night" id="ahNight" aria-pressed="${document.body.classList.contains('night')}">Night</button></div>`;
+    const head = `<div class="ah-top"><a class="ah-back" href="/">‹ Dashboard</a><span class="ah-age${ageH > 12 ? ' old' : ''}">Forecast ${ageH < 1 ? '<1' : Math.round(ageH)} h old</span><button class="ah-night" id="ahNight" aria-pressed="${document.body.classList.contains('night')}">Night</button></div>`;
     const chartBtn = '<button class="ah-chart" id="ahChart">Show on chart</button>';
     if (!A.boat) { el.innerHTML = head + `<div class="ah-card ah-empty"><b>No position yet</b><p>Log a position on the dashboard (or tap WORK/REST on the phone), or plot one on the chart under “Your position”. Then this page shows the weather where you are and where you will be.</p></div>` + chartBtn; return wire(); }
     const P = plan();

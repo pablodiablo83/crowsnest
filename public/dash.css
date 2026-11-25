@@ -12,8 +12,8 @@ body.dash *{box-sizing:border-box}
 body.dash svg{display:block;flex:none}
 .dapp{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
 .dtop{display:flex;align-items:center;gap:12px;padding:12px 18px 8px}
-.dlogo{width:34px;height:34px;border-radius:9px;background:#fff;color:#00154C;display:grid;place-items:center}
-.dbrand{font-weight:900;font-size:20px;letter-spacing:.01em}
+.dlogo{width:44px;height:44px;border-radius:11px;flex:none;display:block;overflow:hidden;box-shadow:0 0 0 1.5px rgba(255,255,255,.28),0 4px 14px rgba(0,0,0,.35)}.dlogo img{display:block;width:100%;height:100%}
+.dbrand{font-weight:900;font-size:21px;letter-spacing:.01em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dtop .dpill{flex:none}
 .dclock{margin-left:auto;font-weight:700;font-size:15px;color:var(--mu);font-variant-numeric:tabular-nums}
 .dpill{display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--line);background:transparent;color:var(--tx);font:700 15px Lato,system-ui,sans-serif;cursor:pointer}
 .dmain{flex:1;min-height:0;padding:0 14px calc(var(--dockh) + 18px + env(safe-area-inset-bottom,0px))}
@@ -138,7 +138,7 @@ body.dash .htoast{bottom:calc(var(--dockh) + 14px + env(safe-area-inset-bottom,0
 .dbb{text-decoration:none;margin-left:auto}.dbb svg{color:#FF5A52}.dclock+.dbb{margin-left:12px}
 @media (max-width:599px){.dbb{width:44px;padding:0;justify-content:center;margin-left:auto;margin-right:8px}.dbb span{display:none}}
 
-/* Build label (25 Nov 2026): the server's build, bottom right just above the dock; turns amber and tappable when the page is older than the server */
-.dbuild{position:fixed;right:12px;z-index:30;bottom:96px;font:700 11px Lato,system-ui,sans-serif;color:var(--mu);background:rgba(0,10,40,.55);border:0;border-radius:10px;padding:3px 8px;letter-spacing:.02em;pointer-events:none}
-.dbuild.new{pointer-events:auto;color:#1A1A1A;background:var(--acc);padding:8px 12px;font-size:13px;cursor:pointer}
-html.night .dbuild:not(.new){background:rgba(0,0,0,.6)}
+/* Build label (25 Nov 2026): last item of the page content, bottom right (never over a tile). On wide screens, where the tiles fill the window, it is fixed just above the dock. Amber and tappable when the page is older than the server. */
+.dbuild{grid-column:1/-1;justify-self:end;font:700 11px Lato,system-ui,sans-serif;color:var(--mu);background:transparent;border:0;border-radius:10px;padding:4px 6px;letter-spacing:.02em;pointer-events:none}
+.dbuild.new{pointer-events:auto;color:#1A1A1A;background:var(--acc);padding:10px 14px;font-size:13px;cursor:pointer}
+@media (min-width:1000px){.dbuild{position:fixed;right:14px;z-index:30;bottom:calc(var(--dockh,72px) + env(safe-area-inset-bottom,0px) + 3px);background:transparent;padding:0 6px;line-height:16px}.dbuild.new{padding:8px 12px;line-height:normal;background:var(--acc)}.dtiles{padding-bottom:22px;box-sizing:border-box}}

@@ -1,0 +1,37 @@
+/* Crow's Nest motion layer (25 Nov 2026), shared by every page. Calm by design (reviewed for a moving vessel): short, one easing family,
+   nothing loops, nothing bounces, only opacity and a few pixels of travel. Cross-document View Transitions where supported (Safari 18.2+),
+   a plain fade-in elsewhere. Reduce Motion: 100 ms fades only. Tokens: --cn-in (arriving), --cn-out (leaving). */
+:root{--cn-in:cubic-bezier(.2,0,0,1);--cn-out:cubic-bezier(.4,0,1,1)}
+@view-transition{navigation:auto}
+::view-transition-old(root){animation:cnOut 160ms var(--cn-out) both}
+::view-transition-new(root){animation:cnIn 260ms var(--cn-in) both}
+@keyframes cnOut{to{opacity:0}}
+@keyframes cnIn{from{opacity:0;transform:translateY(8px)}}
+@keyframes cnFade{from{opacity:0}}
+@keyframes cnRise{from{opacity:0;transform:translateY(24px)}}
+/* header and dock keep their own layer so they do not flash or slide with the page */
+.dtop{view-transition-name:cn-top}.ddock{view-transition-name:cn-dock}
+::view-transition-group(cn-top),::view-transition-group(cn-dock){animation-duration:200ms;animation-timing-function:var(--cn-in)}
+/* no View Transitions: the page simply fades in */
+@supports not selector(::view-transition){body{animation:cnFade 200ms var(--cn-in) both}}
+/* touch feedback */
+.tile,.hbtn,.dpill,.ddock a,.dmic,.h-btn,.dbuild.new{transition:transform 120ms var(--cn-in),background-color 160ms var(--cn-in),border-color 160ms var(--cn-in)}
+.tile:active{transform:scale(.985)}.hbtn:active,.dpill:active,.ddock a:active,.dmic:active,.h-btn:active{transform:scale(.97)}
+/* sheets and the assistant: scrim fades, panel rises; closing is instant (the element is hidden) */
+.dsheet:not([hidden]){animation:cnFade 200ms var(--cn-in) both}
+.dsheet:not([hidden]) .dsheet-in{animation:cnRise 280ms var(--cn-in) both}
+.dasst:not([hidden]){animation:cnRise 240ms var(--cn-in) both}
+/* Night switch: colours cross-fade for a moment (class set by motion.js), never through white */
+html.cn-theme-x *,html.cn-theme-x *::before,html.cn-theme-x *::after{transition:background-color 260ms ease,color 260ms ease,border-color 260ms ease,fill 260ms ease,stroke 260ms ease !important}
+/* values that change: a soft highlight, no movement (class added by CNMotion.flash) */
+@keyframes cnFlash{from{background-color:rgba(246,176,66,.28)}to{background-color:transparent}}
+.cn-flash{animation:cnFlash 600ms ease-out both;border-radius:6px}
+@media (prefers-reduced-motion:reduce){
+  ::view-transition-old(root),::view-transition-new(root){animation-duration:100ms;animation-name:cnFade}
+  ::view-transition-old(root){animation-name:cnOut}
+  ::view-transition-group(*){animation-duration:1ms !important}
+  .dsheet:not([hidden]),.dsheet:not([hidden]) .dsheet-in,.dasst:not([hidden]){animation:cnFade 100ms linear both}
+  .tile:active,.hbtn:active,.dpill:active,.ddock a:active,.dmic:active,.h-btn:active{transform:none}
+  .cn-flash{animation:none}
+  html.cn-theme-x *{transition:none !important}
+}

@@ -75,7 +75,7 @@
 
   // ---- events
   window.addEventListener('error', function (e) { rec('err', { msg: String(e.message || 'error').slice(0, 200), src: String(e.filename || '').replace(/^.*\//, '').slice(0, 60), line: e.lineno, page: page() }); });
-  window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; rec('err', { msg: String((r && r.message) || r || 'rejected promise').slice(0, 200), kind: 'promise', page: page() }); });
+  window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; if (r && /Transition was (aborted|skipped)|AbortError/.test(String(r.message || r))) return; rec('err', { msg: String((r && r.message) || r || 'rejected promise').slice(0, 200), kind: 'promise', page: page() }); });
   window.addEventListener('online', function () { rec('net', { online: true }); setTimeout(flush, 1500); });
   window.addEventListener('offline', function () { rec('net', { online: false }); });
   document.addEventListener('visibilitychange', function () { rec('vis', { visible: !document.hidden, page: page() }); if (document.hidden) flush(); });
