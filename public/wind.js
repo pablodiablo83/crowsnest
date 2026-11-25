@@ -128,7 +128,6 @@
     $('whenRel').textContent = rel(row.t);
     $('dSpeed').textContent = r(row.kn);
     spin(row.dir);
-    $('dArrowPath').setAttribute('fill', c);
     $('fDir').textContent = compass(row.dir);
     $('fDeg').textContent = row.dir == null ? '' : p2(row.dir).padStart(3, '0') + '°';
     $('fKn').textContent = r(row.kn);

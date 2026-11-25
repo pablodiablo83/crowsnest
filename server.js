@@ -326,7 +326,7 @@ app.use((req, res, next) => {
 const auth = require('./auth.js');
 auth.init(db);
 // login.js: the sign-in page's own script (moved out of login.html for the CSP); it holds no data
-const PUBLIC_GET = [/^\/login\.html$/, /^\/login\.js$/, /^\/wave\.css$/, /^\/motion\.css$/, /^\/motion\.css$/, /^\/assets\/[\w.-]+$/, /^\/favicon\.ico$/, /^\/apple-touch-icon[\w-]*\.png$/, /^\/manifest\.json$/, /^\/healthz$/];
+const PUBLIC_GET = [/^\/login\.html$/, /^\/login\.js$/, /^\/wave\.css$/, /^\/motion\.(css|js)$/, /^\/motion\.css$/, /^\/assets\/[\w.-]+$/, /^\/favicon\.ico$/, /^\/apple-touch-icon[\w-]*\.png$/, /^\/manifest\.json$/, /^\/healthz$/];
 app.use((req, res, next) => {
   const p = req.path;
   if (/^\/api\/v1(\/|$)/i.test(p)) return next();

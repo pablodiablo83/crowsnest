@@ -10,7 +10,7 @@
   function device() {
     var s = BB ? BB.status() : null; if (!s) { $('bState').textContent = 'Recorder not available'; return; }
     $('bDot').className = 'b-dot' + (s.on ? ' rec' : ''); $('bState').textContent = s.on ? 'Recording' : 'Paused';
-    $('bToggle').textContent = s.on ? 'Pause' : 'Resume';
+    $('bToggle').textContent = s.on ? 'Pause' : 'Resume'; $('bSend').className = 'h-btn b-btn ' + (s.queued ? 'primary' : 'ghost');
     $('bQueue').textContent = (s.queued ? s.queued + ' waiting to upload' : 'Everything is backed up') + (s.lastUpload ? ' · last upload ' + ago(s.lastUpload) : '') + (s.online ? '' : ' · offline: will send when connected') + (s.dropped ? ' · ' + s.dropped + ' oldest dropped (queue full)' : '');
   }
   async function server() {

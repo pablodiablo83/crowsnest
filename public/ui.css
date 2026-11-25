@@ -1,0 +1,32 @@
+/* Crow's Nest shared UI layer (25 Nov 2026, from the aesthetics review): one header, one "selected" colour, 44 pt sliders, edge fades on
+   scrolling chip rows, tabular figures, and the global Night palette for every page that uses hor.css. Loaded after hor.css. */
+body{font-variant-numeric:tabular-nums}
+:root{--muted:rgba(255,255,255,.84)}
+/* header: back link on its own row, the title below it, aligned with the content */
+.h-top{flex-wrap:wrap;align-items:center;gap:0 8px;padding:4px 0 12px}
+.h-top .h-back{margin-left:-8px;order:1}
+.h-top>:not(.h-back):not(.h-title){order:2;margin-left:auto}
+.h-top .h-title{order:3;flex:0 0 100%}
+.h-title h1{font-size:26px}
+/* selected = amber, everywhere */
+.h-chip[aria-pressed=true]{background:var(--amber);border-color:var(--amber);color:#00154C}
+/* scrolling chip rows fade at the right edge so a cut-off chip reads as "more" */
+.h-crew,.t-days{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent)}
+/* sliders: a visible track and a 44 pt touch area */
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:44px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:rgba(255,255,255,.3)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:30px;height:30px;margin-top:-11px;border-radius:50%;background:var(--amber);border:3px solid #00154C;box-shadow:0 0 0 1.5px rgba(255,255,255,.6)}
+input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:rgba(255,255,255,.3)}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--amber);border:3px solid #00154C}
+input[type=range]:focus-visible{outline:3px solid var(--amber);outline-offset:2px;border-radius:8px}
+/* Hours of rest: the ACTION is the filled button (as on the dashboard), the current state is the quiet dashed one */
+.h-tap.rest:not([aria-pressed=true]){background:var(--cyan);border-color:var(--cyan);color:#00154C}
+.h-tap.work:not([aria-pressed=true]){background:var(--amber);border-color:var(--amber);color:#00154C}
+.h-tap[aria-pressed=true]{background:transparent !important;border-style:dashed;opacity:.85;color:var(--text) !important}
+/* secondary and tertiary buttons are quiet; only one amber action per screen */
+.h-btn.ghost{color:var(--text)}
+/* Night: one global token swap (red on black, no blue). motion.js puts html.night on every page from cn_theme. */
+html.night{--bg:#000;--panel:rgba(255,70,50,.07);--panel-2:rgba(255,70,50,.12);--line:rgba(255,70,50,.3);--line-2:rgba(255,70,50,.5);--text:#FF6A4D;--muted:#C85A44;--cyan:#FF6A4D;--cyan-d:#3A0E09;--cyan-l:#FF6A4D;--amber:#FF6A4D;--amber-l:#FF9C80;--coral:#FF9C80;--sheet:#120303;--ok:#FF6A4D}
+html.night body{background:#000}
+html.night .h-btn.primary,html.night .h-btn.cyan,html.night .h-chip[aria-pressed=true],html.night .t-days button[aria-pressed=true],html.night .h-tap:not([aria-pressed=true]){color:#000 !important}
+html.night input[type=range]::-webkit-slider-thumb{border-color:#000}

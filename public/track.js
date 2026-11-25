@@ -308,7 +308,7 @@
       var a0 = this.dragAt || byId[f.id];
       if (this.editStart) ends += '<circle cx="' + f1(a0[0]) + '" cy="' + f1(a0[1]) + '" r="18" fill="none" stroke="var(--tx)" stroke-width="2" stroke-dasharray="4 3"/>';
       this.startPx = a0;
-      ends += '<circle' + pop + ' cx="' + f1(a0[0]) + '" cy="' + f1(a0[1]) + '" r="8" fill="var(--ok)" stroke="var(--sea)" stroke-width="3"/><text x="' + f1(a0[0] + 12) + '" y="' + f1(a0[1] + 4) + '">Start</text>';
+      ends += '<circle' + pop + ' cx="' + f1(a0[0]) + '" cy="' + f1(a0[1]) + '" r="8" fill="var(--ok)" stroke="var(--sea)" stroke-width="3"/><text x="' + f1(a0[0] + 12) + '" y="' + f1(a0[1] - 10) + '">Start</text>';
     }
     if (l && l !== f) {   // the boat on an open voyage (same marker as the dashboard's Position picture), a plain disc once it has ended
       var shape = open

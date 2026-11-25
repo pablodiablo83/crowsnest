@@ -4,6 +4,8 @@
   'use strict';
   var still = function () { try { return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
   var html = document.documentElement, timer = null, was = null;
+  // one Night for the whole app: every page follows the dashboard's choice (cn_theme)
+  try { if (localStorage.getItem('cn_theme') === 'night') html.classList.add('night'); } catch (e) {}
   var night = function () { return html.classList.contains('night') || (document.body && document.body.classList.contains('night')); };
   function changed() {
     var n = night(); if (was === null) { was = n; return; } if (n === was) return; was = n;

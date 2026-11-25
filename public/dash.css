@@ -135,10 +135,18 @@ body.dash .htoast{bottom:calc(var(--dockh) + 14px + env(safe-area-inset-bottom,0
 .nmea-p{margin:6px 2px 10px;font-size:15px;line-height:1.45;color:var(--mu)}.nmea-p b{color:var(--tx)}.nmea-btn{width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);background:none;color:var(--mu);font:900 16px Lato,system-ui,sans-serif}
 
 /* Black box recorder button (25 Nov 2026): a link pill in the header; icon only on a phone (the More sheet carries the full name) */
-.dbb{text-decoration:none;margin-left:auto}.dbb svg{color:#FF5A52}.dclock+.dbb{margin-left:12px}
+.dbb{text-decoration:none;margin-left:auto}.dbb{position:relative}.dbb svg{color:var(--tx)}.dbb.rec::after{content:'';position:absolute;top:9px;left:30px;width:9px;height:9px;border-radius:50%;background:#FF5A52;box-shadow:0 0 0 2px var(--bg)}.dclock+.dbb{margin-left:12px}
 @media (max-width:599px){.dbb{width:44px;padding:0;justify-content:center;margin-left:auto;margin-right:8px}.dbb span{display:none}}
 
 /* Build label (25 Nov 2026): last item of the page content, bottom right (never over a tile). On wide screens, where the tiles fill the window, it is fixed just above the dock. Amber and tappable when the page is older than the server. */
 .dbuild{grid-column:1/-1;justify-self:end;font:700 11px Lato,system-ui,sans-serif;color:var(--mu);background:transparent;border:0;border-radius:10px;padding:4px 6px;letter-spacing:.02em;pointer-events:none}
 .dbuild.new{pointer-events:auto;color:#1A1A1A;background:var(--acc);padding:10px 14px;font-size:13px;cursor:pointer}
 @media (min-width:1000px){.dbuild{position:fixed;right:14px;z-index:30;bottom:calc(var(--dockh,72px) + env(safe-area-inset-bottom,0px) + 3px);background:transparent;padding:0 6px;line-height:16px}.dbuild.new{padding:8px 12px;line-height:normal;background:var(--acc)}.dtiles{padding-bottom:22px;box-sizing:border-box}}
+
+/* Stale data (offline copy): the tile stays readable but quieter, with an amber chip */
+.tile.stale .pic{filter:saturate(.55);opacity:.8}
+.stalechip{margin-left:auto;font-size:10.5px;font-weight:900;letter-spacing:.04em;text-transform:none;color:var(--onacc);background:var(--acc);border-radius:10px;padding:2px 8px}
+
+/* status card: the right margin matches the left (reviewers: text ran to the card edge) */
+body.dash .hero{padding-right:20px}body.dash .hero *{min-width:0}
+.dim{font-size:12.5px;font-weight:400;opacity:.7}

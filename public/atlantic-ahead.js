@@ -12,8 +12,10 @@
   const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const pad = n => String(n).padStart(2, '0');
   // Beaufort chips: brightness rises with force so they still read in Night mode (red filter) and in sunlight
-  const BC = ['#2B6CB0', '#2B6CB0', '#2E8FA8', '#2E8FA8', '#3FA36B', '#9BC34A', '#E8C547', '#F08A2C', '#D6453A', '#B02A6E', '#8A2390', '#6B1E8A', '#4B1470'];
-  const BT = b => (b >= 5 && b <= 7 ? '#10151F' : '#FFFFFF');
+  // Force colours (25 Nov 2026 review): a cool-to-warm ramp, so F5 and above read as "getting serious", never as a success green.
+  // Brightness rises with force as well as hue (Night red filter, colour-blind readers); dark text on the bright middle chips.
+  const BC = ['#2B6CB0', '#2B6CB0', '#2B6CB0', '#2E8FA8', '#38BDD9', '#F5B041', '#F08A2C', '#E8562C', '#D6453A', '#B02A6E', '#8A2390', '#6B1E8A', '#4B1470'];
+  const BT = b => (b >= 4 && b <= 6 ? '#00154C' : '#FFFFFF');
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem('arcwx_' + k)); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem('arcwx_' + k, JSON.stringify(v)); } catch (e) {} }

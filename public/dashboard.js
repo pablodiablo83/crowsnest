@@ -20,10 +20,19 @@ const ARROW = d => `<span style="display:inline-block;transform:rotate(${(d + 18
 const $ = id => document.getElementById(id);
 const p2 = n => String(n).padStart(2, '0');
 
-async function getJson(url) {
+// markTile: an element inside the tile that shows this data; when the answer is the phone's saved copy (offline), the tile says so
+async function getJson(url, markTile) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url} -> ${r.status}`);
+  if (markTile) markStale(markTile, !!r.headers.get('X-CN-Cached'));
   return r.json();
+}
+function markStale(innerId, on) {
+  const el = document.getElementById(innerId), tile = el && el.closest('.tile'); if (!tile) return;
+  tile.classList.toggle('stale', on);
+  const tag = tile.querySelector('.tag'); let chip = tile.querySelector('.stalechip');
+  if (on && tag && !chip) { chip = document.createElement('span'); chip.className = 'stalechip'; chip.textContent = 'offline copy'; tag.appendChild(chip); }
+  else if (!on && chip) chip.remove();
 }
 function setText(id, text) { $(id).innerHTML = text; }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
@@ -42,7 +51,7 @@ function initPics() {
 // ---------- Weather + wind ----------
 async function loadWeatherAndWind(lat, lon) {
   try {
-    const d = await getJson(`/api/weather?lat=${lat}&lon=${lon}`);
+    const d = await getJson(`/api/weather?lat=${lat}&lon=${lon}`, 'weatherTemp');
     if (d.error) throw new Error(d.error);
     setPic('wxPic', CNPics.weather(d.weatherCode), true);
     setText('weatherTemp', `${Math.round(d.temperatureC)}&deg;C`);
@@ -53,7 +62,7 @@ async function loadWeatherAndWind(lat, lon) {
   // wind from the model chosen on the wind page (same numbers there and here)
   try {
     let m = ''; try { m = localStorage.getItem('cn_windModel') || ''; } catch (e) {}
-    const w = await getJson(`/api/wind?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&days=1${m ? '&model=' + encodeURIComponent(m) : ''}`);
+    const w = await getJson(`/api/wind?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&days=1${m ? '&model=' + encodeURIComponent(m) : ''}`, 'windSpeed');
     const c = w.current || { kn: w.kn[0], dir: w.dir[0], gust: w.gust[0] };
     setPic('windPic', CNPics.wind(c.dir, c.kn), true);
     setText('windSpeed', `from ${COMPASS(c.dir)}`);
@@ -69,7 +78,7 @@ async function loadTides() {
     // the port chosen on the Tides page, else the nearest to this phone's last fix (as the page does), else the server decides
     let port = '', fix = null; try { port = localStorage.getItem('cn_tidePort') || ''; fix = JSON.parse(localStorage.getItem('cn_fix') || 'null'); } catch (e) {}
     const q = port ? '?port=' + encodeURIComponent(port) : fix && isFinite(fix.lat) && isFinite(fix.lon) ? `?lat=${(+fix.lat).toFixed(3)}&lon=${(+fix.lon).toFixed(3)}` : '';
-    const d = await getJson('/api/tides' + q);
+    const d = await getJson('/api/tides' + q, 'tidesBig');
     if (d.failed) { setText('tidesBig', '&mdash;'); setText('tidesSub', /^model:/.test(d.portId || '') ? 'Tides for open water could not be worked out just now. Open to retry.' : `${esc(d.port || 'Tides')}: gauge data could not be read. Open to retry.`); return; }
     if (d.analysing) { setText('tidesSub', `${esc(d.port || 'Nearest port')}: setting up (reading a year of gauge data)&hellip;`); setTimeout(loadTides, 15000); return; }
     if (!d.configured || d.error) { setText('tidesSub', 'Tide data unavailable'); return; }
@@ -94,7 +103,7 @@ async function loadIce() {
     let fix = null; try { fix = JSON.parse(localStorage.getItem('cn_fix') || 'null'); } catch (e) {}
     const d = await getJson('/api/ice' + (fix && isFinite(fix.lat) && isFinite(fix.lon) ? `?lat=${(+fix.lat).toFixed(3)}&lon=${(+fix.lon).toFixed(3)}` : ''));
     if (d.relevant === false) { setPic('icePic', CNPics.ice(null), false); setText('iceBig', 'Not a concern'); setText('iceSub', esc(d.reason || 'No position yet')); return; }
-    if (d.failed) { setPic('icePic', CNPics.ice(null), false); setText('iceBig', '&mdash;'); setText('iceSub', 'Ice data unavailable. Use the DMI or Canadian Ice Service charts.'); return; }
+    if (d.failed) { setPic('icePic', CNPics.ice(null), false); setText('iceBig', '&mdash;'); setText('iceSub', '<span class="dim">Ice data unavailable. Use the DMI or Canadian Ice Service charts.</span>'); return; }
     setPic('icePic', CNPics.ice(d), !d.stale);
     const e = d.near50 || d.near15, here = d.here || 0;
     setText('iceBig', here >= 15 ? `In ice ${here}%` : e ? `${e.distNm} nm ${BRG(e.bearing)}` : 'Clear');
@@ -431,4 +440,12 @@ setInterval(() => { loadHorSummary(); loadLogTile(); loadTrackTile(); }, 120000)
   const place = () => { if (innerWidth < 1000) { el.style.bottom = ''; return; } const dk = document.querySelector('.ddock'); if (dk) { const t = dk.getBoundingClientRect().top; if (t > 0) el.style.bottom = Math.round(innerHeight - t + 6) + 'px'; } };
   check(); setInterval(check, 5 * 60000); place(); addEventListener('resize', place); addEventListener('load', place);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { check(); place(); } });
+})();
+
+
+// ---------- Black box button: neutral glyph; a small red dot only while it is actually recording ----------
+(function () {
+  const b = document.getElementById('bbBtn'); if (!b) return;
+  const upd = () => { const on = !!(window.CNBlackBox && window.CNBlackBox.on && window.CNBlackBox.on()); b.classList.toggle('rec', on); b.setAttribute('aria-label', 'Black box recorder' + (on ? ', recording' : ', paused')); };
+  upd(); setInterval(upd, 5000);
 })();

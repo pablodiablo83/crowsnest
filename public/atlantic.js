@@ -456,7 +456,10 @@ $('layers').onclick = e => { const b=e.target.closest('button'); if (!b) return;
   $('layers').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed', x===b)); legend(); redraw(); updateLabels(); };
 $('bIso').onclick = e => { S.iso=!S.iso; store.set('iso',S.iso); e.currentTarget.setAttribute('aria-pressed',S.iso); redraw(); };
 $('bRoute').onclick = e => { S.route=!S.route; store.set('route',S.route); e.currentTarget.setAttribute('aria-pressed',S.route); S.route?routeLayer.addTo(map):routeLayer.remove(); };
-$('bNight').onclick = e => { S.night=!S.night; document.body.classList.toggle('night',S.night); e.currentTarget.setAttribute('aria-pressed',S.night); };
+// one Night for the whole app: the dashboard's switch (cn_theme) decides, and this button sets the same value
+const nightApply = n => { S.night = n; document.body.classList.toggle('night', n); document.documentElement.classList.toggle('night', n); $('bNight').setAttribute('aria-pressed', n); };
+try { if (localStorage.getItem('cn_theme') === 'night') nightApply(true); } catch (e) {}
+$('bNight').onclick = () => { nightApply(!S.night); try { localStorage.setItem('cn_theme', S.night ? 'night' : 'day'); } catch (e) {} };
 $('slider').oninput = e => setTime(+e.target.value);
 $('play').onclick = () => {
   if (S.play){ clearInterval(S.play); S.play=null; $('play').textContent='▶'; $('play').setAttribute('aria-label','Play forecast'); return; }

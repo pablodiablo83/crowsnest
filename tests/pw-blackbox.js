@@ -33,7 +33,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await ctx.addInitScript(() => { try { localStorage.setItem('cn_fix', JSON.stringify({ lat: 61.1, lon: -46.2, ts: Date.now(), source: 'gps', sog: 4.2, cog: 190 })); } catch (e) {} });
   const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(String(e)));
   await pg.goto(B + '/'); await pg.waitForTimeout(500);
-  ok(await pg.locator('#bbBtn').count() === 1 && await pg.locator('#bbBtn').getAttribute('aria-label') === 'Black box recorder' && await pg.locator('#moreSheet a[href="/blackbox.html"]').count() === 1, 'dashboard has the Black box recorder button and More entry');
+  ok(await pg.locator('#bbBtn').count() === 1 && (await pg.locator('#bbBtn').getAttribute('aria-label')).startsWith('Black box recorder') && await pg.locator('#moreSheet a[href="/blackbox.html"]').count() === 1, 'dashboard has the Black box recorder button and More entry');
   const q0 = await pg.evaluate(() => JSON.parse(localStorage.getItem('cn_bb_q') || '[]').map(x => x.k));
   ok(q0.includes('start'), 'the page start is recorded in the local queue');
   await pg.evaluate(() => { setTimeout(() => { throw new Error('boom from test'); }, 0); }); await pg.waitForTimeout(300);

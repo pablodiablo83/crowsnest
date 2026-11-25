@@ -100,8 +100,9 @@ select.h-in option{color:#00154C}
 </style>
 <link rel="stylesheet" href="/motion.css?v=1">
 <script src="/net.js?v=1"></script>
-<script src="/motion.js?v=2" defer></script>
+<script src="/motion.js?v=3"></script>
 <script src="/blackbox.js?v=3"></script>
+<link rel="stylesheet" href="/ui.css?v=2">
 </head>
 <body>
 <a class="skip" href="#main">Skip to the wind forecast</a>
@@ -126,11 +127,11 @@ select.h-in option{color:#00154C}
             <text class="card" x="110" y="28">N</text><text class="card" x="192" y="110">E</text>
             <text class="card" x="110" y="192">S</text><text class="card" x="28" y="110">W</text>
             <g id="dArrow" style="transform-origin:110px 110px">
-              <path id="dArrowPath" d="M110 30 L123 58 L114 55 L114 82 L106 82 L106 55 L97 58 Z" fill="#7FD3E6"/>
-              <path d="M106 145 L114 145 L114 178 L106 178 Z" fill="rgba(255,255,255,.45)"/>
+              <path id="dArrowPath" d="M110 22 L130 64 L117 60 L117 90 L103 90 L103 60 L90 64 Z" fill="#F5B041" stroke="#00154C" stroke-width="2" stroke-linejoin="round"/>
             </g>
-            <text class="spd" id="dSpeed" x="110" y="118">—</text>
-            <text class="unit" x="110" y="138">knots</text>
+            <circle cx="110" cy="110" r="42" fill="var(--bg)" stroke="#fff" stroke-width="3"/>
+            <text class="spd" id="dSpeed" x="110" y="116">—</text>
+            <text class="unit" x="110" y="136">knots</text>
           </svg>
           <div class="w-facts">
             <div class="w-fact"><div class="k">From</div><div class="v" id="fDir">—</div><div class="s" id="fDeg"></div></div>
