@@ -164,3 +164,15 @@ body.dash .hero{padding-right:20px}body.dash .hero *{min-width:0}
 
 /* iPad and desktop dock: larger labels, items kept together instead of spread edge to edge */
 @media (min-width:1000px){.ditems{max-width:1180px;margin:0 auto;justify-content:space-evenly}.ditems a,.ditems button{font-size:13.5px;min-width:76px}}
+
+/* Work/rest control, discreet (25 Nov 2026, Pabs): same outlined, line-icon language as the other tiles. Still distinct: amber = work, cyan = rest, glyph and word say which. No solid slabs. */
+.rglyph,.rglyph.work,.rglyph.rest{width:44px;height:44px;border-radius:50%;background:transparent;border:2px solid currentColor}
+.rglyph.work{color:var(--acc)}.rglyph.rest{color:var(--rest)}
+.rglyph svg{width:24px;height:24px}
+body.dash .hstate{font-size:22px}
+body.dash .hbtn{background:rgba(255,255,255,.04);border:2px solid currentColor;min-height:92px;height:92px;border-radius:20px;gap:2px;padding:8px}
+body.dash .hbtn.rest{background:rgba(56,189,217,.08);color:var(--rest)}body.dash .hbtn.work{background:rgba(245,176,66,.08);color:var(--acc)}
+body.dash .hb-main{font-size:18px;letter-spacing:.04em}body.dash .hb-sub{font-size:12px;opacity:.85;color:var(--mu)}.hb-ic{width:26px;height:26px}
+@media (max-width:599px){body.dash .hbtn{min-height:96px;height:96px;padding:6px 4px;justify-content:center}body.dash .hb-main{font-size:15px;line-height:1.1}.hb-ic{width:22px;height:22px}body.dash .hb-sub{font-size:11px;line-height:1.15}.rglyph,.rglyph.work,.rglyph.rest{width:40px;height:40px}.rglyph svg{width:22px;height:22px}}
+@media (min-width:600px) and (max-width:999px){body.dash .hbtn{min-height:120px;height:auto}}
+@media (min-width:1000px){body.dash .hbtns{flex:none;margin:12px 0}body.dash .hbtn{flex:none;min-height:100px;height:100px}}

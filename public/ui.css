@@ -20,13 +20,13 @@ input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:rgba
 input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--amber);border:3px solid #00154C}
 input[type=range]:focus-visible{outline:3px solid var(--amber);outline-offset:2px;border-radius:8px}
 /* Hours of rest: the ACTION is the filled button (as on the dashboard), the current state is the quiet dashed one */
-.h-tap.rest:not([aria-pressed=true]){background:var(--cyan);border-color:var(--cyan);color:#00154C}
-.h-tap.work:not([aria-pressed=true]){background:var(--amber);border-color:var(--amber);color:#00154C}
+.h-tap.rest:not([aria-pressed=true]){background:rgba(40,167,196,.14);border-color:var(--cyan);color:var(--cyan-l)}
+.h-tap.work:not([aria-pressed=true]){background:rgba(245,176,66,.14);border-color:var(--amber);color:var(--amber)}
 .h-tap[aria-pressed=true]{background:transparent !important;border-style:dashed;opacity:.85;color:var(--text) !important}
 /* secondary and tertiary buttons are quiet; only one amber action per screen */
 .h-btn.ghost{color:var(--text)}
 /* Night: one global token swap (red on black, no blue). motion.js puts html.night on every page from cn_theme. */
 html.night{--bg:#000;--panel:rgba(255,70,50,.07);--panel-2:rgba(255,70,50,.12);--line:rgba(255,70,50,.3);--line-2:rgba(255,70,50,.5);--text:#FF6A4D;--muted:#C85A44;--cyan:#FF6A4D;--cyan-d:#3A0E09;--cyan-l:#FF6A4D;--amber:#FF6A4D;--amber-l:#FF9C80;--coral:#FF9C80;--sheet:#120303;--ok:#FF6A4D}
 html.night body{background:#000}
-html.night .h-btn.primary,html.night .h-btn.cyan,html.night .h-chip[aria-pressed=true],html.night .t-days button[aria-pressed=true],html.night .h-tap:not([aria-pressed=true]){color:#000 !important}
+html.night .h-btn.primary,html.night .h-btn.cyan,html.night .h-chip[aria-pressed=true],html.night .t-days button[aria-pressed=true]{color:#000 !important}
 html.night input[type=range]::-webkit-slider-thumb{border-color:#000}

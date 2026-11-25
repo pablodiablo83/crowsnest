@@ -36,7 +36,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
     ok(m.sw <= m.iw + 1, name + ': no sideways scroll (' + m.sw + ' ≤ ' + m.iw + ')');
     ok(m.overlap === 0, name + ': tiles do not overlap');
     ok(m.small.length === 0, name + ': every control is at least 44 pt (' + JSON.stringify(m.small) + ')');
-    ok(m.btn.length === 1 && m.btn[0].h >= 100, name + ': one big rest/work toggle (' + Math.round(m.btn[0] && m.btn[0].h) + ' pt tall)');
+    ok(m.btn.length === 1 && m.btn[0].h >= 88, name + ': one rest/work toggle, discreet outlined (' + Math.round(m.btn[0] && m.btn[0].h) + ' pt tall)');
     ok(await page.evaluate(() => { const d = document.getElementById('ddock').getBoundingClientRect(); return Math.abs(d.bottom - innerHeight) < 2; }), name + ': dock sits on the bottom edge');
     if (w >= 1000) {
       const clipped = m.tiles.filter(t => t.clip > 3).map(t => t.id + ':' + t.clip);
@@ -68,7 +68,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
     const { ctx, page } = await mk(1180, 820);
     await page.click('#themeBtn'); ok(await page.evaluate(() => document.documentElement.classList.contains('night') && localStorage.getItem('cn_theme') === 'night'), 'night mode on and remembered');
     await page.waitForTimeout(450);   // the Night cross-fade (260 ms) must have finished
-    const bg = await page.evaluate(() => [getComputedStyle(document.body).backgroundColor, getComputedStyle(document.getElementById('btnRest')).backgroundColor]);
+    const bg = await page.evaluate(() => [getComputedStyle(document.body).backgroundColor, getComputedStyle(document.getElementById('btnRest')).borderTopColor]);
     ok(bg[0] === 'rgb(0, 0, 0)' && /255, 106, 77/.test(bg[1]), 'night: black background, red toggle (' + bg.join(' / ') + ')');
     await page.reload(); await page.waitForSelector('#heroMain', { state: 'visible' }); ok(await page.evaluate(() => document.documentElement.classList.contains('night')), 'night mode survives a reload');
     await page.screenshot({ path: OUT + '/dash-night.png' }); await page.click('#themeBtn');
