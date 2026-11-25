@@ -9,7 +9,7 @@ COPY package.json package-lock.json ./
 # exact versions from the lockfile (reproducible, audited builds)
 RUN npm ci --omit=dev
 
-COPY server.js extra.js inshore-areas.js auth.js tides.js tide-stations.js atlantic-wx.js health.js assistant.js ./
+COPY server.js extra.js inshore-areas.js auth.js tides.js tide-stations.js atlantic-wx.js ice.js blackbox.js health.js assistant.js ./
 COPY tools ./tools
 COPY engine/hor-engine.js engine/tide.js ./engine/
 COPY public ./public

@@ -21,6 +21,7 @@ run() {   # run NAME CMD...
   local out; out=$("${@:2}" 2>&1); local rc=$?
   if [ $rc -eq 0 ]; then echo "ok   $1"; else echo "FAIL $1"; echo "$out" | grep -v '^PASS' | tail -15; fail=1; fi
 }
+run docker-files node tests/docker-files.js
 run engine node engine/hor-engine.test.js
 run tide-engine node --test engine/tide.test.js
 fresh && run api-auth node tests/api-auth.js
