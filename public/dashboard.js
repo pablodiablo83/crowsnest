@@ -412,3 +412,23 @@ loadIce(); setInterval(loadIce, 3 * 3600000);
 loadLogTile();
 loadTrackTile(); flushQueue();
 setInterval(() => { loadHorSummary(); loadLogTile(); loadTrackTile(); }, 120000);
+
+
+// ---------- Build label (bottom right) ----------
+// Shows the server's build (git commit). On the web, a page opened before a deploy finds a newer build here and offers a reload.
+(function () {
+  const el = document.getElementById('dBuild'); if (!el) return;
+  let loaded = null;
+  const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  async function check() {
+    try {
+      const d = await getJson('/api/build'); if (!d || !d.commit) { el.textContent = 'build ?'; return; }
+      if (loaded == null) loaded = d.commit;
+      if (!native && d.commit !== loaded) { el.className = 'dbuild new'; el.disabled = false; el.textContent = 'New version \u2013 tap to reload'; el.onclick = () => location.reload(); return; }
+      el.textContent = 'build ' + d.commit;
+    } catch (e) { /* offline: keep what is shown */ }
+  }
+  const place = () => { const dk = document.querySelector('.ddock'); if (dk) { const t = dk.getBoundingClientRect().top; if (t > 0) el.style.bottom = Math.round(innerHeight - t + 6) + 'px'; } };
+  check(); setInterval(check, 5 * 60000); place(); addEventListener('resize', place); addEventListener('load', place);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { check(); place(); } });
+})();

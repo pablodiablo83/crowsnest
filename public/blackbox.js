@@ -6,7 +6,7 @@
 (function () {
   'use strict';
   if (window.CNBlackBox) return;
-  var QK = 'cn_bb_q', DK = 'cn_bb_dev', OFF = 'cn_bb_off', LASTUP = 'cn_bb_up', LASTPOS = 'cn_bb_pos', DROPS = 'cn_bb_drop', LASTERR = 'cn_bb_err';
+  var BGK = 'cn_bb_bg', QK = 'cn_bb_q', DK = 'cn_bb_dev', OFF = 'cn_bb_off', LASTUP = 'cn_bb_up', LASTPOS = 'cn_bb_pos', DROPS = 'cn_bb_drop', LASTERR = 'cn_bb_err';
   var MAXQ = 3000, BATCH = 150, inflight = false, seq = 0, lastKey = '';
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
   function dev() { var d = ls(DK); if (!d) { d = 'd' + Math.random().toString(36).slice(2, 8) + (Date.now() % 1679616).toString(36); ls(DK, d); } return d; }
@@ -23,11 +23,22 @@
       var t = Date.now(), q = queue();
       q.push({ id: dev() + '-' + t.toString(36) + '-' + (seq++).toString(36) + Math.random().toString(36).slice(2, 4), t: t, k: k, d: d || {} });
       save(q);
-      if (q.length >= BATCH) flush();
+      if (q.length >= BATCH || k === 'err' || k === 'note') setTimeout(flush, k === 'err' ? 2000 : 200);
     } catch (e) {}
   }
   function fix() { try { var f = JSON.parse(ls('cn_fix') || 'null'); return f && isFinite(f.lat) && isFinite(f.lon) ? f : null; } catch (e) { return null; } }
   function round(v, n) { return v == null || !isFinite(v) ? undefined : Math.round(v * Math.pow(10, n)) / Math.pow(10, n); }
+
+  // a fix handed over by the phone app's background tracker (native.js): recorded at most once a minute, uploaded at once
+  function pos(f) {
+    if (!f || !isFinite(f.lat) || !isFinite(f.lon)) return;
+    if (Date.now() - (+ls(LASTPOS) || 0) < 55000) return;
+    ls(LASTPOS, String(Date.now())); lastKey = f.lat + ',' + f.lon + ',' + (f.ts || '');
+    rec('pos', { lat: round(f.lat, 5), lon: round(f.lon, 5), sog: round(f.sog, 1), cog: round(f.cog, 0), acc: round(f.acc, 0), src: f.source || 'background' });
+    flush();
+  }
+  // phone app only: keep the location tracker running in the background even with no voyage open, so the black box keeps recording (default on)
+  function bgWanted() { return on() && ls(BGK) !== '0'; }
 
   // ---- position: whenever the app's fix is newer than the last one recorded (at most once a minute across tabs)
   function samplePos() {
@@ -60,7 +71,7 @@
   }
 
   function status() { return { on: on(), device: dev(), queued: queue().length, lastUpload: +ls(LASTUP) || 0, dropped: +ls(DROPS) || 0, online: navigator.onLine !== false }; }
-  window.CNBlackBox = { note: function (text) { rec('note', { msg: String(text || '').slice(0, 500) }); return flush(); }, flush: flush, status: status, on: on, set: function (v) { ls(OFF, v ? null : '1'); rec(v ? 'rec-on' : 'rec-off', {}); if (v) flush(); } };
+  window.CNBlackBox = { pos: pos, bgWanted: bgWanted, setBg: function (v) { ls(BGK, v ? null : '0'); if (window.CNNative) window.CNNative.check(); }, bg: function () { return ls(BGK) !== '0'; }, note: function (text) { rec('note', { msg: String(text || '').slice(0, 500) }); return flush(); }, flush: flush, status: status, on: on, set: function (v) { ls(OFF, v ? null : '1'); rec(v ? 'rec-on' : 'rec-off', {}); if (v) flush(); } };
 
   // ---- events
   window.addEventListener('error', function (e) { rec('err', { msg: String(e.message || 'error').slice(0, 200), src: String(e.filename || '').replace(/^.*\//, '').slice(0, 60), line: e.lineno, page: page() }); });
@@ -85,5 +96,5 @@
   rec('start', { page: page(), online: navigator.onLine !== false, ua: String(navigator.userAgent || '').slice(0, 140), native: !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) });
   setTimeout(samplePos, 3000); setInterval(samplePos, 20000);
   setTimeout(sampleState, 8000); setInterval(sampleState, 5 * 60000);
-  setTimeout(flush, 5000); setInterval(flush, 30000);
+  setTimeout(flush, 5000); setInterval(flush, 15000);
 })();

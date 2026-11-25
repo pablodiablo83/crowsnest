@@ -348,7 +348,7 @@ app.use((req, res, next) => {
   req.user = s.user; req.sid = auth.cookieOf(req);
   deviceCtx.run({ id: null, name: s.user.username, role: s.user.role, crew_id: s.user.crew_id, web: true }, next);   // audit + crew limits
 });
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { setHeaders: (res, f) => { if (/\.html$/.test(f)) res.setHeader('Cache-Control', 'no-cache'); } }));   // pages are revalidated every time (an open Safari tab kept old scripts after a deploy)
 
 const signFails = new Map();   // key -> timestamps of failed sign-ins in the last 15 minutes (per username and per address)
 function tooMany(keys) {
@@ -1444,6 +1444,8 @@ function statusReport() {
   for (const e of recent.slice(-15).reverse()) L.push(`${new Date(e.at).toISOString().slice(11, 16)}  ${e.text}`);
   return { at: new Date(now).toISOString(), commit: COMMIT, overall: bad ? 'bad' : warn ? 'warn' : 'ok', checks, errors: recent.slice(-15).reverse().map(e => ({ at: new Date(e.at).toISOString(), text: e.text })), text: L.join('\n') };
 }
+// the build the server is running (dashboard label bottom right; a page that finds a different one offers a reload)
+app.get('/api/build', (req, res) => { res.set('Cache-Control', 'no-store'); res.json({ commit: COMMIT || null, started: new Date(health.started).toISOString() }); });
 app.get('/api/status', (req, res) => {
   const d = curDevice();
   if (d && d.role !== 'master') return res.status(403).json({ error: 'only the master can see the status page' });

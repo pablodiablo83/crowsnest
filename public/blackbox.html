@@ -25,11 +25,12 @@
 .b-note{display:flex;gap:8px;margin-top:10px}
 .b-note input{flex:1;min-width:0;min-height:44px;border-radius:12px;border:1px solid var(--line);background:#061033;color:var(--tx,#fff);padding:0 12px;font:inherit}
 .b-day b{font-variant-numeric:tabular-nums}
+.b-row[hidden]{display:none}
 .b-links{display:flex;gap:8px}
 .b-msg{color:var(--muted);padding:14px 2px;font-size:14px}
 </style>
 <script src="/net.js?v=1"></script>
-<script src="/blackbox.js?v=1"></script>
+<script src="/blackbox.js?v=2"></script>
 </head>
 <body>
 <div class="b-wrap">
@@ -44,6 +45,7 @@
   <section class="h-card b-card" aria-label="This device">
     <div class="b-row"><div class="b-state" role="status" aria-live="polite"><span class="b-dot" id="bDot"></span><span id="bState">Checking…</span></div><button type="button" class="h-btn ghost b-btn" id="bToggle">Pause</button></div>
     <div class="b-row"><span class="b-meta" id="bQueue">&hellip;</span><button type="button" class="h-btn primary b-btn" id="bSend">Send now</button></div>
+    <div class="b-row" id="bBgRow" hidden><span><b>Keep recording in the background</b><br><span class="b-meta">iPhone app: the location tracker stays on (blue indicator) so the black box records with the screen off, even with no voyage open.</span></span><button type="button" class="h-btn ghost b-btn" id="bBg">On</button></div>
     <form class="b-note" id="bNoteForm"><input id="bNote" maxlength="500" placeholder="Add a note (e.g. “engine alarm, 14:20”)" aria-label="Note for the black box"><button type="submit" class="h-btn ghost b-btn">Add note</button></form>
   </section>
 
@@ -54,6 +56,6 @@
   </section>
   <p class="b-msg">Plain text: JSON Lines (one record per line, opens in any editor) or CSV (opens in a spreadsheet). The server keeps one file per day for 400 days. Only the master account can download.</p>
 </div>
-<script src="/blackbox-page.js?v=1"></script>
+<script src="/blackbox-page.js?v=2"></script>
 </body>
 </html>

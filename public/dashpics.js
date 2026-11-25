@@ -88,8 +88,19 @@
   }
 
   // ---- Boat data (NMEA / Signal K): a placeholder picture, a boat with signal arcs
+  // ---- Boat data (NMEA placeholder): a plan-view hull with a data bus and four instrument nodes. Technical line drawing, no cartoon.
   function boatdata() {
-    return '<svg viewBox="0 0 200 130" role="img" aria-label="Boat data" style="width:100%;height:100%"><g fill="none" stroke="var(--tx)" stroke-opacity=".4" stroke-width="6" stroke-linecap="round" stroke-dasharray="2 10"><path d="M70 40 A34 34 0 0 1 130 40"/><path d="M52 26 A56 56 0 0 1 148 26"/></g><path d="M40 84 L160 84 L142 112 L58 112Z" fill="var(--cl2)"/><path d="M100 84 L100 38 L132 84Z" fill="var(--cl1)"/><circle cx="100" cy="30" r="6" fill="var(--acc)"/></svg>';
+    var nodes = [[52, 65, 'ENG', -1], [86, 65, 'DEPTH', 1], [120, 65, 'WIND', -1], [152, 65, 'GPS', 1]];
+    var ns = nodes.map(function (n) {
+      var y = n[1] + n[3] * 20;
+      return '<line x1="' + n[0] + '" y1="65" x2="' + n[0] + '" y2="' + y + '" stroke="var(--tx)" stroke-opacity=".5" stroke-width="1.6"/>' +
+        '<rect x="' + (n[0] - 9) + '" y="' + (y - 7) + '" width="18" height="14" rx="3.5" fill="var(--bg)" stroke="var(--tx)" stroke-opacity=".8" stroke-width="2" stroke-dasharray="3 2.5"/>' +
+        '<text x="' + n[0] + '" y="' + (y + (n[3] > 0 ? 19 : -11)) + '" text-anchor="middle" font-size="9.5" font-weight="900" letter-spacing=".06em" fill="var(--tx)" fill-opacity=".7">' + n[2] + '</text>' +
+        '<circle cx="' + n[0] + '" cy="65" r="2.8" fill="var(--tx)" fill-opacity=".8"/>';
+    }).join('');
+    return '<svg viewBox="0 0 200 130" role="img" aria-label="Boat instruments, not connected" style="width:100%;height:100%">' +
+      '<path d="M14 65 C14 42 34 24 62 24 L120 24 C152 24 176 50 188 65 C176 80 152 106 120 106 L62 106 C34 106 14 88 14 65 Z" fill="var(--tx)" fill-opacity=".06" stroke="var(--tx)" stroke-opacity=".75" stroke-width="2.6" stroke-linejoin="round"/>' +
+      '<line x1="30" y1="65" x2="176" y2="65" stroke="var(--acc)" stroke-width="2.4" stroke-dasharray="6 4" stroke-linecap="round"/>' + ns + '</svg>';
   }
 
   // ---- Weather: a cloud picture that follows the WMO weather code

@@ -137,3 +137,8 @@ body.dash .htoast{bottom:calc(var(--dockh) + 14px + env(safe-area-inset-bottom,0
 /* Black box recorder button (25 Nov 2026): a link pill in the header; icon only on a phone (the More sheet carries the full name) */
 .dbb{text-decoration:none;margin-left:auto}.dbb svg{color:#FF5A52}.dclock+.dbb{margin-left:12px}
 @media (max-width:599px){.dbb{width:44px;padding:0;justify-content:center;margin-left:auto;margin-right:8px}.dbb span{display:none}}
+
+/* Build label (25 Nov 2026): the server's build, bottom right just above the dock; turns amber and tappable when the page is older than the server */
+.dbuild{position:fixed;right:12px;z-index:30;bottom:96px;font:700 11px Lato,system-ui,sans-serif;color:var(--mu);background:rgba(0,10,40,.55);border:0;border-radius:10px;padding:3px 8px;letter-spacing:.02em;pointer-events:none}
+.dbuild.new{pointer-events:auto;color:#1A1A1A;background:var(--acc);padding:8px 12px;font-size:13px;cursor:pointer}
+html.night .dbuild:not(.new){background:rgba(0,0,0,.6)}

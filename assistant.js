@@ -336,7 +336,7 @@ const EXEMPT_PAGES = { '/login.html': 'sign-in screen', '/connect.html': 'one-ti
 const EXEMPT_APIS = {
   'POST /api/auth/login': 'sign-in', 'POST /api/auth/logout': 'sign-in', 'GET /api/auth/status': 'sign-in', 'GET /api/auth/me': 'sign-in', 'POST /api/auth/password': 'security: never by text',
   'POST /api/auth/pair': 'pairing a phone', 'POST /api/devices/pair-code': 'pairing a phone', 'GET /api/devices': 'phone management is deliberate, on the Customise sheet', 'DELETE /api/devices/:id': 'security: never by text',
-  'GET /api/time': 'plumbing', 'GET /api/me': 'plumbing', 'GET /api/vessel': 'settings screen', 'PUT /api/vessel': 'settings screen',
+  'GET /api/time': 'plumbing', 'GET /api/build': 'plumbing: the build label on the dashboard', 'GET /api/me': 'plumbing', 'GET /api/vessel': 'settings screen', 'PUT /api/vessel': 'settings screen',
   'POST /api/crew': 'crew management is deliberate, on Hours of rest', 'PUT /api/crew/:id': 'crew management', 'DELETE /api/crew/:id': 'crew management',
   'DELETE /api/voyages/:id': 'voyage edits are deliberate, on Hours of rest', 'POST /api/voyages/:id/restore': 'voyage edits', 'PUT /api/voyages/:id': 'voyage edits', 'PUT /api/voyages/:id/declaration': 'a declaration is the seafarer’s own statement: never by text',
   'POST /api/crew/:id/voyages': 'creating a voyage needs the joining declaration', 'POST /api/crew/:id/voyage/reopen': 'voyage edits',

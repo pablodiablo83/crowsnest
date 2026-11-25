@@ -18,6 +18,9 @@
   function onFix(loc, err) {
     if (err || !loc) return;
     var f = { lat: loc.latitude, lon: loc.longitude, ts: loc.time || Date.now() };
+    // the black box records every tracker fix (its own once-a-minute limit) and uploads at once, in the background too
+    if (window.CNBlackBox) window.CNBlackBox.pos({ lat: f.lat, lon: f.lon, ts: f.ts, acc: loc.accuracy, sog: loc.speed != null && loc.speed >= 0 ? loc.speed * KN : undefined, cog: loc.bearing != null && loc.bearing >= 0 ? loc.bearing : undefined, source: 'background' });
+    if (!cfg.voyageOpen) return;   // no open voyage: the fix is for the black box only, never the voyage track
     if (last) {
       var age = f.ts - last.ts, moved = nm(last, f);
       // the timer interval, or sooner when making way (1 nm after 2 min); lying still, one an hour
@@ -50,7 +53,8 @@
       var r = await fetch('/api/track/status', { cache: 'no-store' });
       if (r.ok && !r.headers.get('X-CN-Cached')) { var d = await r.json(); cfg.intervalMin = d.intervalMin || 15; cfg.voyageOpen = !!d.voyageOpen; }
     } catch (e) { /* offline: keep the last known state */ }
-    if (enabled() && cfg.voyageOpen) start(); else stop();
+    var bb = window.CNBlackBox && window.CNBlackBox.bgWanted && window.CNBlackBox.bgWanted();
+    if (enabled() && (cfg.voyageOpen || bb)) start(); else stop();
   }
   window.CNNative = { check: check, running: function () { return !!watcher; } };
   document.addEventListener('cn:tap', function () { setTimeout(check, 3000); });

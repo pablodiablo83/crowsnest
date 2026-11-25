@@ -26,6 +26,8 @@
       }).join('') : '<p class="b-msg">Nothing on the server yet. Records upload within a minute of the first position or event.</p>');
     } catch (e) { $('bDays').innerHTML = '<p class="b-msg">Could not read the server copy: ' + esc(e.message || e) + '. This device keeps recording and will upload later.</p>'; }
   }
+  var isApp = !!(window.CNNet && window.CNNet.isApp);
+  if (isApp && BB) { $('bBgRow').hidden = false; var bg = function () { $('bBg').textContent = BB.bg() ? 'On' : 'Off'; }; bg(); $('bBg').addEventListener('click', function () { BB.setBg(!BB.bg()); bg(); }); }
   $('bToggle').addEventListener('click', function () { if (BB) { BB.set(!BB.on()); device(); } });
   $('bSend').addEventListener('click', async function () { var b = $('bSend'); b.disabled = true; try { if (BB) await BB.flush(); } finally { b.disabled = false; device(); server(); } });
   $('bNoteForm').addEventListener('submit', async function (e) { e.preventDefault(); var t = $('bNote').value.trim(); if (!t || !BB) return; $('bNote').value = ''; await BB.note(t); device(); server(); });
